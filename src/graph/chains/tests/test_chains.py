@@ -1,4 +1,4 @@
-from ingestion import retriever
+from src.ingestion import retriever
 from graph.chains.generation import generation_chain
 from pprint import pprint
 from dotenv import load_dotenv

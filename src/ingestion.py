@@ -13,7 +13,7 @@ embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 vectorstore = PineconeVectorStore(
     index_name=os.getenv("INDEX_NAME"), embedding=embeddings)
 
-file_path = "./assets/docs/2024_Poker_TDA_Rules_PDF_Longform_Vers_1.0_FINAL.pdf"
+file_path = os.getenv("FILE_PATH")
 loader = PyPDFLoader(file_path)
 
 docs = loader.load()
