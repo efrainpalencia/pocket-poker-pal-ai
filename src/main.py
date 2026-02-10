@@ -18,6 +18,8 @@ from slowapi.util import get_remote_address
 from langgraph.types import Command
 from langgraph.checkpoint.memory import MemorySaver
 
+from api_v1.routes import chat
+
 from cli import cli_run
 
 load_dotenv()
@@ -54,6 +56,8 @@ def root(request: Request):
     message = "API running!"
     return {"message": message}
 
+
+app.include_router(chat.router, prefix="/api-v1/chat", tags=["Chat"])
 
 if __name__ == "__main__":
     uvicorn.run("main:app", port=8000, reload=True)
