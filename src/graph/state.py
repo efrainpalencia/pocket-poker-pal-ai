@@ -8,3 +8,4 @@ class GraphState(TypedDict, total=False):
     documents: list[str]
     generation: str
     grounded: bool
+    attempts: int

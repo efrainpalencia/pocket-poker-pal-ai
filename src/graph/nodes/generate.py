@@ -6,15 +6,24 @@ from graph.state import GraphState
 def generate(state: GraphState) -> Dict[str, Any]:
     print("---GENERATE---")
     question = state["question"]
-    documents = state["documents"]
+
+    # documents should be list[str] in state
+    docs = state.get("documents", [])
+    if not isinstance(docs, list):
+        docs = [str(docs)]
+
+    # Join into a single context string for the LLM
+    context = "\n\n".join(str(d) for d in docs if d)
+
+    # Optional: helpful debug during dev
+    # print("CONTEXT_CHARS:", len(context))
 
     result = generation_chain.invoke(
-        {"context": documents, "question": question})
+        {"context": context, "question": question})
 
-    # If it's an AIMessage, it will have .content
+    # Normalize to plain string
     generation_text = getattr(result, "content", result)
     if not isinstance(generation_text, str):
         generation_text = str(generation_text)
 
-    # Return only updates (deltas)
     return {"generation": generation_text}

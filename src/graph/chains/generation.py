@@ -11,10 +11,20 @@ llm = ChatOpenAI(api_key=os.getenv("OPENAI_API_KEY"), temperature=0)
 
 # System prompt
 
-system = """You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise. \n\n
-    Question: {question} \n
-    Context: {context} \n
-    Answer:"""
+system = """You are a poker rules assistant.
+Answer using ONLY the retrieved context below.
+
+Rules:
+- If the context contains the rule: answer and include a short supporting quote (max 25 words).
+- If the rule is not explicitly stated but can be reasonably inferred: say "Inference:" and include the closest supporting quote + a short caveat.
+- If the context is insufficient: say "Not found in the provided text" and ask ONE clarifying question.
+
+Keep it concise (max 4 sentences).
+
+Question: {question}
+Context: {context}
+Answer:"""
+
 
 # Chat prompt template
 prompt_template = ChatPromptTemplate.from_messages(

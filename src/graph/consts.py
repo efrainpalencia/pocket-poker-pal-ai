@@ -1,3 +1,5 @@
 RETRIEVE = "retrieve"
 GENERATE = "generate"
-ROUTE_TO_CLARIFY = "route_to_clarify"
+GRADE = "grade"
+RETRY_OR_CLARIFY = "retry_or_clarify"
+ROUTE_OR_CLARIFY = "route_or_clarify"
