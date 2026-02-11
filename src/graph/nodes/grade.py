@@ -3,16 +3,21 @@ from graph.state import GraphState
 from graph.chains.grader import grader_chain
 
 
-def grade(state: GraphState) -> dict:
-    verdict = grader_chain.invoke({
+def grade(state: GraphState) -> Dict[str, Any]:
+    print("---GRADE---")
+    result = grader_chain.invoke({
         "question": state["question"],
         "context": "\n\n".join(state.get("documents", [])),
         "answer": state.get("generation", ""),
-    }).strip().upper()
+    })
 
-    if verdict.startswith("Y"):
-        return {"grounded": True, "grade": "YES"}
-    if verdict.startswith("P"):
-        # treat PARTIAL as acceptable, but you may want to revise answer with a caveat
-        return {"grounded": True, "grade": "PARTIAL"}
-    return {"grounded": False, "grade": "NO"}
+    # result is GradeOut (pydantic model)
+    confidence = float(result.confidence)
+    grounded = confidence >= 0.60 and not result.is_hallucination_risk
+
+    return {
+        "grade_label": result.label,
+        "confidence": confidence,
+        "grounded": grounded,
+        "missing_info": result.missing_info,
+    }

@@ -7,5 +7,8 @@ class GraphState(TypedDict, total=False):
     game_type: Literal["tournament", "cash-game"] | None
     documents: list[str]
     generation: str
+
     grounded: bool
-    attempts: int
+    confidence: float
+    grade_label: str
+    missing_info: list[str]

@@ -13,7 +13,8 @@ load_dotenv()
 
 
 def after_grade(state: GraphState) -> str:
-    return END if state.get("grounded") else "retry_or_clarify"
+    conf = state.get("confidence", 0.0)
+    return END if conf >= 0.60 else "retry_or_clarify"
 
 
 workflow = StateGraph(GraphState)
