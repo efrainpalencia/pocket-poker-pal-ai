@@ -10,7 +10,7 @@ from graph.llm.factory import get_chat_llm
 load_dotenv()
 
 # Initialize LLM
-llm = get_chat_llm(temperature=0, streaming=True)
+llm = get_chat_llm(temperature=0, streaming=False)
 
 grader_prompt = ChatPromptTemplate.from_messages([
     ("system",
