@@ -5,10 +5,12 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
 
+from graph.llm.factory import get_chat_llm
+
 load_dotenv()
 
 # Initialize LLM
-llm = ChatOpenAI(api_key=os.getenv("OPENAI_API_KEY"), temperature=0)
+llm = get_chat_llm(temperature=0, streaming=True)
 
 grader_prompt = ChatPromptTemplate.from_messages([
     ("system",
@@ -18,7 +20,6 @@ grader_prompt = ChatPromptTemplate.from_messages([
      "Return ONLY one token: YES, PARTIAL, or NO.\n"
      "- YES: The answer is clearly supported by the context.\n"
      "- PARTIAL: The answer is not stated verbatim, but is a reasonable inference from the context; "
-     "it should be presented with a brief caveat (e.g., 'Typically...' / 'In most rooms...').\n"
      "- NO: The context does not support the answer, is unrelated, or contradicts it.\n\n"
      "Be lenient toward reasonable inference, but do not allow answers that invent specific rules not implied by context."),
     ("human",

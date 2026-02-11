@@ -4,10 +4,12 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
+from graph.llm.factory import get_chat_llm
+
 load_dotenv()
 
 # Initialize LLM
-llm = ChatOpenAI(api_key=os.getenv("OPENAI_API_KEY"), temperature=0)
+llm = get_chat_llm(temperature=0, streaming=True)
 
 # System prompt
 
