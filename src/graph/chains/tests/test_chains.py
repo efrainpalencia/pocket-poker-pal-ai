@@ -10,12 +10,14 @@ def patch_chatopenai_generate(monkeypatch, content: str):
     Patch ChatOpenAI._generate to return a valid ChatResult that LangChain expects.
     This avoids network calls and avoids pydantic Generation validation errors.
     """
-    from langchain_openai import ChatOpenAI
     from langchain_core.messages import AIMessage
     from langchain_core.outputs import ChatGeneration, ChatResult
+    from langchain_openai import ChatOpenAI
 
     def _fake_generate(self, messages, stop=None, run_manager=None, **kwargs):
-        return ChatResult(generations=[ChatGeneration(message=AIMessage(content=content))])
+        return ChatResult(
+            generations=[ChatGeneration(message=AIMessage(content=content))]
+        )
 
     monkeypatch.setattr(ChatOpenAI, "_generate", _fake_generate, raising=True)
 
@@ -26,8 +28,7 @@ def patch_chatopenai_generate(monkeypatch, content: str):
 def test_classifier_chain_returns_expected_label(monkeypatch):
     patch_chatopenai_generate(monkeypatch, "tournament")
 
-    out = classifier_chain.invoke(
-        {"question": "In a tournament, can I late reg?"})
+    out = classifier_chain.invoke({"question": "In a tournament, can I late reg?"})
     assert isinstance(out, str)
     assert out.strip().lower() in ("tournament", "cash-game", "unknown")
 
@@ -46,7 +47,8 @@ def test_generation_chain_returns_string(monkeypatch):
     patch_chatopenai_generate(monkeypatch, "Yes. You may post to play.")
 
     out = generation_chain.invoke(
-        {"context": "Rule text...", "question": "Can I post to play?"})
+        {"context": "Rule text...", "question": "Can I post to play?"}
+    )
     assert isinstance(out, str)
     assert out.strip() != ""
 
@@ -54,12 +56,15 @@ def test_generation_chain_returns_string(monkeypatch):
 # -----------------------------
 # Grader chain tests
 # -----------------------------
-@pytest.mark.parametrize("verdict,expected", [
-    ("YES", True),
-    ("Yes", True),
-    (" NO ", False),
-    ("no", False),
-])
+@pytest.mark.parametrize(
+    "verdict,expected",
+    [
+        ("YES", True),
+        ("Yes", True),
+        (" NO ", False),
+        ("no", False),
+    ],
+)
 def test_grader_chain_basic_yes_no(monkeypatch, verdict, expected):
     patch_chatopenai_generate(monkeypatch, verdict)
 

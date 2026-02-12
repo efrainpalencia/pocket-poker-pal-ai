@@ -1,4 +1,5 @@
 import os
+
 import pytest
 from dotenv import load_dotenv
 from langchain_openai import OpenAIEmbeddings
@@ -38,8 +39,7 @@ def test_tournament_dead_small_blind_retrieval(vectorstore):
     combined_text = " ".join(d.page_content.lower() for d in docs)
 
     assert (
-        "small blind" in combined_text
-        or "blind" in combined_text
+        "small blind" in combined_text or "blind" in combined_text
     ), "Retrieved docs do not appear relevant to blinds"
 
 

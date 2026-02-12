@@ -1,25 +1,45 @@
 from langgraph.types import interrupt
+
+from graph.consts import SEMINOLE_NAMESPACE, TDA_NAMESPACE
 from graph.state import GraphState
-from graph.consts import TDA_NAMESPACE, SEMINOLE_NAMESPACE
 
 MAX_RETRIES = 2
 
 
 def _is_ruleset_missing(state: GraphState) -> bool:
-    return bool(state.get("needs_clarification")) or not state.get("game_type") or not state.get("namespace")
+    """Return True when a ruleset/game_type or namespace is missing.
+
+    Used to decide whether to ask the user to choose tournament vs cash-game.
+    """
+
+    return (
+        bool(state.get("needs_clarification"))
+        or not state.get("game_type")
+        or not state.get("namespace")
+    )
 
 
 def retry_or_clarify(state: GraphState) -> dict:
+    """Graph node: either request clarifying information or prepare a retry.
+
+    Handles two main cases:
+      - Missing ruleset (tournament vs cash-game) — ask user to choose.
+      - Low-confidence answer — prompt user to provide more detail or
+        append user detail and retry the retrieval/generation loop.
+    """
+
     retry_count = int(state.get("retry_count", 0))
     missing = state.get("missing_info") or []
 
     # ---- Case A: UI chooses tournament vs cash-game ----
     if _is_ruleset_missing(state):
-        choice = interrupt({
-            "type": "choose_ruleset",
-            "message": "I need to know which ruleset to use for your question.",
-            "options": ["tournament", "cash-game"],
-        })
+        choice = interrupt(
+            {
+                "type": "choose_ruleset",
+                "message": "I need to know which ruleset to use for your question.",
+                "options": ["tournament", "cash-game"],
+            }
+        )
 
         selected = (choice or "").strip().lower()
 
@@ -56,9 +76,14 @@ def retry_or_clarify(state: GraphState) -> dict:
         return {"force_end": True}
 
     if missing:
-        prompt = " ".join(missing) if any("?" in m for m in missing) else (
-            "I couldn’t answer confidently from the rule text. Can you clarify: " +
-            "; ".join(missing) + "?"
+        prompt = (
+            " ".join(missing)
+            if any("?" in m for m in missing)
+            else (
+                "I couldn’t answer confidently from the rule text. Can you clarify: "
+                + "; ".join(missing)
+                + "?"
+            )
         )
     else:
         prompt = (

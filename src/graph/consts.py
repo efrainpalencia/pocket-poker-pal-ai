@@ -1,3 +1,4 @@
+# Graph nodes
 RETRIEVE = "retrieve"
 GENERATE = "generate"
 GRADE = "grade"

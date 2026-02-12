@@ -1,10 +1,10 @@
 import os
 import uuid
-import pytest
 
-from graph.graph import graph
+import pytest
 from langgraph.types import Command
 
+from graph.graph import graph
 
 REQUIRED_ENV = ["OPENAI_API_KEY", "PINECONE_API_KEY", "INDEX_NAME"]
 
@@ -63,8 +63,7 @@ def run_until_done(inputs, config, defaults, max_steps=20):
         # Resume and capture the result
         out = graph.invoke(Command(resume=reply), config=config)
 
-    raise AssertionError(
-        "Graph did not complete within max_steps (possible loop).")
+    raise AssertionError("Graph did not complete within max_steps (possible loop).")
 
 
 @pytest.mark.skipif(_missing_env(), reason=f"Missing env vars: {_missing_env()}")
@@ -73,7 +72,8 @@ def test_graph_end_to_end_tournament_success():
 
     out = run_until_done(
         inputs={
-            "question": "In a tournament, what is a chip race and when is it performed?"},
+            "question": "In a tournament, what is a chip race and when is it performed?"
+        },
         config=config,
         defaults={
             "ruleset_choice": "tournament",
@@ -81,8 +81,9 @@ def test_graph_end_to_end_tournament_success():
         },
     )
 
-    assert out.get(
-        "confidence", 0.0) >= 0.60, f"Low confidence: {out.get('confidence')}"
+    assert (
+        out.get("confidence", 0.0) >= 0.60
+    ), f"Low confidence: {out.get('confidence')}"
     assert out.get("grounded") is True
     assert out.get("generation")
 
@@ -100,8 +101,9 @@ def test_graph_end_to_end_interrupt_and_resume():
         },
     )
 
-    assert out.get(
-        "confidence", 0.0) >= 0.60, f"Low confidence after resume: {out.get('confidence')}"
+    assert (
+        out.get("confidence", 0.0) >= 0.60
+    ), f"Low confidence after resume: {out.get('confidence')}"
     assert out.get("grounded") is True
     assert out.get("generation")
 
@@ -111,7 +113,9 @@ def test_tournament_fallback_hits_section_j_when_needed():
     config = {"configurable": {"thread_id": "pytest-section-j-1"}}
 
     out = run_until_done(
-        inputs={"question": "If there is a dead small blind, can a new player be seated there and assume the small blind?"},
+        inputs={
+            "question": "If there is a dead small blind, can a new player be seated there and assume the small blind?"
+        },
         config=config,
         defaults={
             "ruleset_choice": "tournament",
@@ -123,8 +127,7 @@ def test_tournament_fallback_hits_section_j_when_needed():
     assert out.get("grounded") is True
 
     docs = out.get("documents", []) or []
-    hit_section_j = any((d.metadata or {}).get(
-        "section") == "Section_J" for d in docs)
+    hit_section_j = any((d.metadata or {}).get("section") == "Section_J" for d in docs)
 
     # ✅ Only require Section J if fallback condition was met
     if float(out.get("retrieval_strength", 1.0)) < 0.35:

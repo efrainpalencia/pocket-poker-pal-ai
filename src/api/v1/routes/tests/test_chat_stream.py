@@ -1,9 +1,10 @@
 import pytest
+
 from api.v1.routes.tests.conftest import (
-    skip_if_missing_env,
-    new_thread_id,
-    collect_until_terminal_strict,
     assert_sse_terminal_contract,
+    collect_until_terminal_strict,
+    new_thread_id,
+    skip_if_missing_env,
 )
 
 pytestmark = pytest.mark.integration
@@ -33,13 +34,17 @@ def test_sse_resume_stream_flow(client, base_prefix):
     thread_id = new_thread_id("pytest-sse-resume")
 
     url_stream = f"{base_prefix}/qa/stream" if base_prefix else "/qa/stream"
-    url_resume = f"{base_prefix}/qa/resume/stream" if base_prefix else "/qa/resume/stream"
+    url_resume = (
+        f"{base_prefix}/qa/resume/stream" if base_prefix else "/qa/resume/stream"
+    )
 
     with client.stream(
         "GET",
         url_stream,
-        params={"question": "Can I take this seat and what do I have to post?",
-                "thread_id": thread_id},
+        params={
+            "question": "Can I take this seat and what do I have to post?",
+            "thread_id": thread_id,
+        },
     ) as resp1:
         assert resp1.status_code == 200
         _, terminal1 = collect_until_terminal_strict(resp1, max_events=60)
@@ -53,8 +58,12 @@ def test_sse_resume_stream_flow(client, base_prefix):
     prompt = terminal1.get("prompt") or {}
     ptype = prompt.get("type")
 
-    reply = "cash-game" if ptype == "choose_ruleset" else (
-        "Cash-game. New player is taking a seat and asks what blinds/post they must pay to enter."
+    reply = (
+        "cash-game"
+        if ptype == "choose_ruleset"
+        else (
+            "Cash-game. New player is taking a seat and asks what blinds/post they must pay to enter."
+        )
     )
 
     with client.stream(
@@ -66,8 +75,7 @@ def test_sse_resume_stream_flow(client, base_prefix):
         _, terminal2 = collect_until_terminal_strict(resp2, max_events=120)
 
     assert terminal2 is not None
-    assert terminal2.get("type") in {
-        "complete", "needs_clarification", "error"}
+    assert terminal2.get("type") in {"complete", "needs_clarification", "error"}
     assert terminal2.get("thread_id") == thread_id
 
     # If it completes, enforce full contract.
@@ -76,7 +84,9 @@ def test_sse_resume_stream_flow(client, base_prefix):
 
 
 @skip_if_missing_env
-def test_sse_resume_invalid_reply_returns_error_or_needs_clarification(client, base_prefix):
+def test_sse_resume_invalid_reply_returns_error_or_needs_clarification(
+    client, base_prefix
+):
     """
     If we reach a choose_ruleset interrupt, invalid reply should produce:
       - error OR
@@ -85,7 +95,9 @@ def test_sse_resume_invalid_reply_returns_error_or_needs_clarification(client, b
     thread_id = new_thread_id("pytest-sse-invalid-reply")
 
     url_stream = f"{base_prefix}/qa/stream" if base_prefix else "/qa/stream"
-    url_resume = f"{base_prefix}/qa/resume/stream" if base_prefix else "/qa/resume/stream"
+    url_resume = (
+        f"{base_prefix}/qa/resume/stream" if base_prefix else "/qa/resume/stream"
+    )
 
     with client.stream(
         "GET",
@@ -131,13 +143,17 @@ def test_sse_double_interrupt_ruleset_then_free_text(client, base_prefix):
     thread_id = new_thread_id("pytest-sse-double")
 
     url_stream = f"{base_prefix}/qa/stream" if base_prefix else "/qa/stream"
-    url_resume = f"{base_prefix}/qa/resume/stream" if base_prefix else "/qa/resume/stream"
+    url_resume = (
+        f"{base_prefix}/qa/resume/stream" if base_prefix else "/qa/resume/stream"
+    )
 
     with client.stream(
         "GET",
         url_stream,
-        params={"question": "Can I take this seat and what do I have to post?",
-                "thread_id": thread_id},
+        params={
+            "question": "Can I take this seat and what do I have to post?",
+            "thread_id": thread_id,
+        },
     ) as resp1:
         assert resp1.status_code == 200
         _, terminal1 = collect_until_terminal_strict(resp1, max_events=80)
@@ -180,6 +196,5 @@ def test_sse_double_interrupt_ruleset_then_free_text(client, base_prefix):
         assert resp3.status_code == 200
         _, terminal3 = collect_until_terminal_strict(resp3, max_events=160)
 
-    assert terminal3.get("type") in {
-        "complete", "needs_clarification", "error"}
+    assert terminal3.get("type") in {"complete", "needs_clarification", "error"}
     assert terminal3.get("thread_id") == thread_id

@@ -1,13 +1,13 @@
 from dotenv import load_dotenv
-from langgraph.graph import END, StateGraph
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import END, StateGraph
 
-from graph.state import GraphState
+from graph.consts import GENERATE, GRADE, RETRIEVE, RETRY_OR_CLARIFY, ROUTE_OR_CLARIFY
 from graph.nodes import generate, retrieve
 from graph.nodes.grade import grade
 from graph.nodes.retry_or_clarify import retry_or_clarify
 from graph.nodes.route_or_clarify import route_or_clarify
-from graph.consts import GENERATE, GRADE, RETRIEVE, RETRY_OR_CLARIFY, ROUTE_OR_CLARIFY
+from graph.state import GraphState
 
 load_dotenv()
 
@@ -16,14 +16,35 @@ MAX_RETRIES = 2
 
 # Return branch labels (strings), NOT node ids.
 def after_route(state: GraphState) -> str:
-    return "needs_user_clarification" if state.get("needs_clarification") else "proceed_to_retrieve"
+    """Choose the next branch after routing.
+
+    Returns a branch label string used by the `StateGraph` conditional
+    edges mapping.
+    """
+
+    return (
+        "needs_user_clarification"
+        if state.get("needs_clarification")
+        else "proceed_to_retrieve"
+    )
 
 
 def after_retry(state: GraphState) -> str:
+    """Determine the branch after a retry_or_clarify node.
+
+    Returns 'end' when the workflow should stop, otherwise 'retrieve'.
+    """
+
     return "end" if state.get("force_end") else "retrieve"
 
 
 def after_grade(state: GraphState) -> str:
+    """Choose the next branch label after grading.
+
+    Uses `force_end`, structured generation mode, confidence and grounding
+    signals to decide whether to accept the answer or retry/stop.
+    """
+
     if state.get("force_end"):
         return "max_retries_reached"
 

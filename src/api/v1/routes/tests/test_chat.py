@@ -1,8 +1,9 @@
 import pytest
+
 from api.v1.routes.tests.conftest import (
-    skip_if_missing_env,
-    new_thread_id,
     assert_json_contract,
+    new_thread_id,
+    skip_if_missing_env,
 )
 
 pytestmark = pytest.mark.integration
@@ -32,8 +33,10 @@ def test_post_qa_resume_flow(client, base_prefix):
 
     r1 = client.post(
         url_qa,
-        json={"question": "Can I take this seat and what do I have to post?",
-              "thread_id": thread_id},
+        json={
+            "question": "Can I take this seat and what do I have to post?",
+            "thread_id": thread_id,
+        },
     )
     assert r1.status_code == 200, r1.text
     data1 = r1.json()
@@ -44,8 +47,12 @@ def test_post_qa_resume_flow(client, base_prefix):
 
     prompt = data1.get("prompt") or {}
     ptype = prompt.get("type")
-    reply = "cash-game" if ptype == "choose_ruleset" else (
-        "Cash-game. New player sits in and asks what blind/post is required to enter."
+    reply = (
+        "cash-game"
+        if ptype == "choose_ruleset"
+        else (
+            "Cash-game. New player sits in and asks what blind/post is required to enter."
+        )
     )
 
     r2 = client.post(url_resume, json={"thread_id": thread_id, "reply": reply})
@@ -57,7 +64,9 @@ def test_post_qa_resume_flow(client, base_prefix):
 
 
 @skip_if_missing_env
-def test_post_resume_invalid_reply_returns_error_or_needs_clarification(client, base_prefix):
+def test_post_resume_invalid_reply_returns_error_or_needs_clarification(
+    client, base_prefix
+):
     """
     If we get a choose_ruleset prompt, an invalid reply should not silently "complete".
     Acceptable behaviors:
@@ -86,8 +95,7 @@ def test_post_resume_invalid_reply_returns_error_or_needs_clarification(client, 
     if prompt.get("type") != "choose_ruleset":
         return
 
-    r2 = client.post(url_resume, json={
-                     "thread_id": thread_id, "reply": "banana"})
+    r2 = client.post(url_resume, json={"thread_id": thread_id, "reply": "banana"})
     assert r2.status_code in {200, 400, 422}, r2.text
 
     if r2.status_code == 422:
@@ -120,7 +128,8 @@ def test_post_double_interrupt_ruleset_then_free_text(client, base_prefix):
     url_resume = f"{base_prefix}/qa/resume" if base_prefix else "/qa/resume"
 
     r1 = client.post(
-        url_qa, json={"question": "Can I take this seat?", "thread_id": thread_id})
+        url_qa, json={"question": "Can I take this seat?", "thread_id": thread_id}
+    )
     assert r1.status_code == 200, r1.text
     data1 = r1.json()
 
@@ -131,8 +140,7 @@ def test_post_double_interrupt_ruleset_then_free_text(client, base_prefix):
     if p1 != "choose_ruleset":
         return
 
-    r2 = client.post(url_resume, json={
-                     "thread_id": thread_id, "reply": "cash-game"})
+    r2 = client.post(url_resume, json={"thread_id": thread_id, "reply": "cash-game"})
     assert r2.status_code == 200, r2.text
     data2 = r2.json()
 
@@ -144,10 +152,13 @@ def test_post_double_interrupt_ruleset_then_free_text(client, base_prefix):
         # Still acceptable: it may ask ruleset again or complete after first resume on some runs
         return
 
-    r3 = client.post(url_resume, json={
-        "thread_id": thread_id,
-        "reply": "Cash-game context. New player sat mid-orbit and asks what blinds/posts are required to enter.",
-    })
+    r3 = client.post(
+        url_resume,
+        json={
+            "thread_id": thread_id,
+            "reply": "Cash-game context. New player sat mid-orbit and asks what blinds/posts are required to enter.",
+        },
+    )
     assert r3.status_code == 200, r3.text
     data3 = r3.json()
     assert data3["status"] in {"complete", "needs_clarification"}

@@ -1,8 +1,9 @@
-from typing import Literal, Optional, List, Union
+from typing import List, Literal, Optional, Union
+
 from pydantic import BaseModel, Field
 
-
 # ---------- interrupt payloads ----------
+
 
 class ChooseRulesetPrompt(BaseModel):
     type: Literal["choose_ruleset"]
@@ -19,6 +20,7 @@ InterruptPrompt = Union[ChooseRulesetPrompt, FreeTextPrompt]
 
 
 # ---------- SSE event models (optional but nice) ----------
+
 
 class SSEStart(BaseModel):
     type: Literal["start"]
@@ -51,6 +53,7 @@ class SSEError(BaseModel):
 
 # ---------- request bodies (if you later add POST endpoints) ----------
 
+
 class AskIn(BaseModel):
     question: str = Field(min_length=1)
     thread_id: Optional[str] = None
@@ -63,6 +66,7 @@ class ResumeIn(BaseModel):
 
 
 # ---------- non-streaming output (optional) ----------
+
 
 class QAOut(BaseModel):
     status: Literal["needs_clarification", "complete"]

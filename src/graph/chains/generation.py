@@ -1,8 +1,8 @@
 from typing import Literal, Optional
-from pydantic import BaseModel, Field
 
 from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
+from pydantic import BaseModel, Field
 
 from graph.llm.factory import get_chat_llm
 
@@ -14,7 +14,8 @@ class GenerationOut(BaseModel):
         description="direct if explicitly supported, inference if reasonably implied, not_found if insufficient context"
     )
     answer: str = Field(
-        description="Concise answer. Max 4 sentences. Do NOT include the quote here.")
+        description="Concise answer. Max 4 sentences. Do NOT include the quote here."
+    )
     quote: Optional[str] = Field(
         default=None,
         description="EXACT contiguous quote copied from context (<= 25 words). Required for direct/inference.",
@@ -63,14 +64,15 @@ If unsure, prefer mode=not_found.
 prompt = ChatPromptTemplate.from_messages(
     [
         ("system", system),
-        ("human",
-         "Question:\n{question}\n\nContext:\n{context}\n\nReturn structured output only."),
+        (
+            "human",
+            "Question:\n{question}\n\nContext:\n{context}\n\nReturn structured output only.",
+        ),
     ]
 )
 
-generation_llm = (
-    get_chat_llm(temperature=0, streaming=False)
-    .with_structured_output(GenerationOut)
+generation_llm = get_chat_llm(temperature=0, streaming=False).with_structured_output(
+    GenerationOut
 )
 
 generation_chain = prompt | generation_llm

@@ -1,20 +1,50 @@
-from graph.state import GraphState
 from graph.chains.classifier import classifier_chain
 from graph.consts import SEMINOLE_NAMESPACE, TDA_NAMESPACE
+from graph.state import GraphState
 
 TOURNAMENT_HINTS = [
-    "tournament", "level", "levels", "late reg", "late registration", "registration",
-    "bag", "bagging", "break", "icm", "payout", "ante", "button ante", "bb ante",
-    "re-entry", "rebuy", "add-on", "chip race"
+    "tournament",
+    "level",
+    "levels",
+    "late reg",
+    "late registration",
+    "registration",
+    "bag",
+    "bagging",
+    "break",
+    "icm",
+    "payout",
+    "ante",
+    "button ante",
+    "bb ante",
+    "re-entry",
+    "rebuy",
+    "add-on",
+    "chip race",
 ]
 
 CASH_HINTS = [
-    "cash game", "rake", "time rake", "must-move", "table stakes", "buy-in",
-    "straddle", "missed blind", "seat change", "runner", "comp", "time charge"
+    "cash game",
+    "rake",
+    "time rake",
+    "must-move",
+    "table stakes",
+    "buy-in",
+    "straddle",
+    "missed blind",
+    "seat change",
+    "runner",
+    "comp",
+    "time charge",
 ]
 
 
 def heuristic_classify(question: str) -> str:
+    """Quick heuristic classification of a question into a game type.
+
+    Looks for common tournament/cash hints in the lowercase question text.
+    """
+
     q = (question or "").lower()
     if any(h in q for h in TOURNAMENT_HINTS):
         return "tournament"
@@ -24,6 +54,11 @@ def heuristic_classify(question: str) -> str:
 
 
 def normalize_game_type(raw: str) -> str:
+    """Normalise raw classifier output into canonical game type.
+
+    Returns one of: `tournament`, `cash-game` or `unknown`.
+    """
+
     if not raw:
         return "unknown"
 
@@ -45,6 +80,13 @@ def normalize_game_type(raw: str) -> str:
 
 
 def route_or_clarify(state: GraphState) -> dict:
+    """Graph node: decide routing to a ruleset or ask for clarification.
+
+    Uses heuristics and an LLM classifier as a fallback to choose the
+    `game_type` and `namespace` for retrieval. When unsure, returns a
+    `needs_clarification` payload prompting the UI to ask the user.
+    """
+
     # ✅ Short-circuit if UI (or prior step) already set explicit routing fields
     existing_game_type = state.get("game_type")
     existing_namespace = state.get("namespace")

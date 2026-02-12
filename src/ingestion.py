@@ -1,14 +1,14 @@
+import hashlib
 import os
 import re
-import hashlib
-from typing import List, Tuple, Optional
-from dotenv import load_dotenv
+from typing import List, Optional, Tuple
 
+from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
+from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings
 
 from graph.consts import SEMINOLE_NAMESPACE, TDA_NAMESPACE
 
@@ -37,13 +37,29 @@ fallback_splitter = RecursiveCharacterTextSplitter(
 # ---------------------------
 
 
-def stable_id(rulebook: str, namespace: str, page: int, block_id: str, chunk_index: int, content: str) -> str:
+def stable_id(
+    rulebook: str,
+    namespace: str,
+    page: int,
+    block_id: str,
+    chunk_index: int,
+    content: str,
+) -> str:
+    """Return a stable, short id for a content chunk.
+
+    The id incorporates rulebook, namespace, page, block id and a
+    short hash of the content to avoid collisions while remaining
+    human-inspectable.
+    """
+
     h = hashlib.sha1(content.encode("utf-8")).hexdigest()[:12]
     safe_block = re.sub(r"[^a-zA-Z0-9_-]+", "_", block_id)[:60] or "block"
     return f"{rulebook}__{namespace}__p{page}__{safe_block}__c{chunk_index}__{h}"
 
 
 def normalize_ws(text: str) -> str:
+    """Normalize whitespace by collapsing spaces/tabs and trimming."""
+
     return re.sub(r"[ \t]+", " ", text).strip()
 
 
@@ -124,6 +140,12 @@ def docs_from_blocks(
     Convert blocks into Documents. If a block is too large, fallback-split it.
     Returns (documents, ids).
     """
+    """Convert textual blocks into `Document` objects and stable ids.
+
+    Splits oversized blocks using `fallback_splitter` and returns a tuple
+    of `(documents, ids)` suitable for adding to a vector store.
+    """
+
     out_docs: List[Document] = []
     out_ids: List[str] = []
 
@@ -139,12 +161,13 @@ def docs_from_blocks(
 
         block_doc = Document(
             page_content=block_text,
-            metadata=pinecone_safe_meta({
-                **base_meta,
-                "block_id": block_id,
-                "section_title": section_title,  # will be removed if None
-            }),
-
+            metadata=pinecone_safe_meta(
+                {
+                    **base_meta,
+                    "block_id": block_id,
+                    "section_title": section_title,  # will be removed if None
+                }
+            ),
         )
 
         # If it's still too big, split further
@@ -170,7 +193,23 @@ def docs_from_blocks(
     return out_docs, out_ids
 
 
-def add_in_batches(vs: PineconeVectorStore, docs: List[Document], ids: List[str], namespace: str, batch_size: int = 100):
+def add_in_batches(
+    vs: PineconeVectorStore,
+    docs: List[Document],
+    ids: List[str],
+    namespace: str,
+    batch_size: int = 100,
+):
+    """Add documents to a PineconeVectorStore in batches.
+
+    Args:
+        vs: PineconeVectorStore instance.
+        docs: List of documents to add.
+        ids: Corresponding list of ids.
+        namespace: Target namespace in the index.
+        batch_size: How many documents to add per request.
+    """
+
     for start in range(0, len(docs), batch_size):
         end = start + batch_size
         vs.add_documents(
@@ -181,10 +220,12 @@ def add_in_batches(vs: PineconeVectorStore, docs: List[Document], ids: List[str]
 
 
 def pinecone_safe_meta(meta: dict) -> dict:
+    """Remove `None` values from metadata to make it Pinecone-safe.
+
+    Pinecone rejects metadata keys with null values; this helper drops
+    such keys and returns a cleaned dict.
     """
-    Pinecone does not allow null metadata values.
-    Remove keys with None and normalize list values to list[str] if present.
-    """
+
     clean = {}
     for k, v in meta.items():
         if v is None:
@@ -199,6 +240,12 @@ def pinecone_safe_meta(meta: dict) -> dict:
 
 
 def ingest_tda_pdf(file_path: str):
+    """Ingest a TDA PDF into the configured vectorstore namespace.
+
+    This function loads the PDF, splits it into logical blocks, converts
+    them into `Document` chunks, and writes them to the vector store.
+    """
+
     rulebook_name = "tda_2024"
     namespace = TDA_NAMESPACE
 
@@ -240,6 +287,12 @@ def ingest_tda_pdf(file_path: str):
 
 
 def ingest_seminole_pdf(file_path: str):
+    """Ingest the Seminole (cash game) PDF into the corresponding namespace.
+
+    Similar to `ingest_tda_pdf`, but with Seminole-specific section splitting
+    and `game_type` tagging.
+    """
+
     rulebook_name = "seminole_2025"
     namespace = SEMINOLE_NAMESPACE
 
@@ -271,16 +324,18 @@ def ingest_seminole_pdf(file_path: str):
             else:
                 game_type = "cash-game"
 
-            base_meta = pinecone_safe_meta({
-                "rulebook": rulebook_name,
-                "source_pdf": "SEMINOLE_2025",
-                "namespace": namespace,
-                "game_type": game_type,
-                "section": section_id,
-                "section_title": section_title,
-                "page": page,
-                "source_file": os.path.basename(file_path),
-            })
+            base_meta = pinecone_safe_meta(
+                {
+                    "rulebook": rulebook_name,
+                    "source_pdf": "SEMINOLE_2025",
+                    "namespace": namespace,
+                    "game_type": game_type,
+                    "section": section_id,
+                    "section_title": section_title,
+                    "page": page,
+                    "source_file": os.path.basename(file_path),
+                }
+            )
 
             docs, ids = docs_from_blocks(
                 blocks=[block],

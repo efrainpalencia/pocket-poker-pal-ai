@@ -1,8 +1,14 @@
-from graph.state import GraphState
 from graph.chains.grader import grade_answer
+from graph.state import GraphState
 
 
 def grade(state: GraphState) -> dict:
+    """Graph node: grade the current generation against the context.
+
+    Combines deterministic checks with the `grade_answer` LLM grader and
+    returns grading metadata (label, confidence, grounded, etc.).
+    """
+
     context = state.get("context_used") or ""
     question = state.get("question", "") or ""
     generation = state.get("generation", "") or ""

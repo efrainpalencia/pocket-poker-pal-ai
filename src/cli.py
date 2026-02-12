@@ -1,8 +1,16 @@
 from langgraph.types import Command
+
 from graph.graph import graph
 
 
 def cli_run():
+    """Simple interactive CLI to exercise the graph locally.
+
+    Runs a REPL loop that sends user questions into `graph.invoke` and
+    handles interrupts by prompting the user for replies. Intended for
+    quick local testing and debugging.
+    """
+
     thread_id = "local-test-1"
     config = {"configurable": {"thread_id": thread_id}}
 
@@ -27,10 +35,13 @@ def cli_run():
 
         # Print final answer + useful debug fields
         print("\nAssistant:", result.get("generation"))
-        print("Debug:", {
-            "game_type": result.get("game_type"),
-            "grounded": result.get("grounded"),
-            "attempts": result.get("attempts", 0),
-            "docs": len(result.get("documents", [])),
-        })
+        print(
+            "Debug:",
+            {
+                "game_type": result.get("game_type"),
+                "grounded": result.get("grounded"),
+                "attempts": result.get("attempts", 0),
+                "docs": len(result.get("documents", [])),
+            },
+        )
         print()

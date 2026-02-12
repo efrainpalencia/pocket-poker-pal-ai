@@ -1,6 +1,7 @@
 import json
 import os
 import uuid
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -75,6 +76,7 @@ def new_thread_id(prefix: str) -> str:
 # SSE helpers
 # ----------------------------
 
+
 def iter_sse_json(resp):
     """
     Yields decoded JSON objects from an SSE response.
@@ -83,11 +85,10 @@ def iter_sse_json(resp):
     for raw in resp.iter_lines():
         if not raw:
             continue
-        line = raw.decode("utf-8") if isinstance(raw,
-                                                 (bytes, bytearray)) else raw
+        line = raw.decode("utf-8") if isinstance(raw, (bytes, bytearray)) else raw
         if not line.startswith("data: "):
             continue
-        payload = line[len("data: "):].strip()
+        payload = line[len("data: ") :].strip()
         if not payload:
             continue
         yield json.loads(payload)
@@ -132,6 +133,7 @@ def collect_until_terminal_strict(resp, max_events: int = 25):
 # ----------------------------
 # Contract helpers
 # ----------------------------
+
 
 def assert_json_contract(data: dict, thread_id: str):
     assert data.get("thread_id") == thread_id

@@ -1,11 +1,10 @@
 import re
-from typing import Literal, List, Optional
+from typing import List, Literal, Optional
 
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
-
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from pydantic import BaseModel, Field
 
 from graph.llm.factory import get_chat_llm
 
@@ -27,10 +26,15 @@ class GradeOut(BaseModel):
 _NOT_FOUND_PREFIX = "Not found in the provided text."
 QUOTE_RE = re.compile(r'(?im)^\s*Quote:\s*"?(.*?)"?\s*$', re.MULTILINE)
 CLARIFY_RE = re.compile(
-    r'(?im)^\s*Clarifying Question:\s*(.+)\s*$', re.MULTILINE)
+    r"(?im)^\s*Clarifying Question:\s*(.+)\s*$", re.MULTILINE)
 
 
 def extract_quote(answer: str) -> Optional[str]:
+    """Extract the 'Quote:' line from a generated answer, if present.
+
+    Returns the quote text or `None` when not found.
+    """
+
     if not answer:
         return None
     m = QUOTE_RE.search(answer)
@@ -41,6 +45,11 @@ def extract_quote(answer: str) -> Optional[str]:
 
 
 def extract_clarifying_question(answer: str) -> Optional[str]:
+    """Extract an inline 'Clarifying Question:' from an answer string.
+
+    Returns the clarifying question text or `None` when not present.
+    """
+
     if not answer:
         return None
     m = CLARIFY_RE.search(answer)
@@ -51,6 +60,11 @@ def extract_clarifying_question(answer: str) -> Optional[str]:
 
 
 def quote_in_context(quote: str, context: str) -> bool:
+    """Check whether a quoted excerpt appears in the provided context.
+
+    Normalizes whitespace for robust matching.
+    """
+
     if not quote or not context:
         return False
 
@@ -105,6 +119,7 @@ grader_chain = grader_prompt | grader_llm | parser
 # -------------------------
 # Public grading function
 # -------------------------
+
 
 def grade_answer(
     question: str,
@@ -165,7 +180,8 @@ def grade_answer(
             confidence=0.0,
             label="NO",
             reasons=[
-                "Structured mode requires a supporting quote, but none was provided."],
+                "Structured mode requires a supporting quote, but none was provided."
+            ],
             missing_info=[],
             is_hallucination_risk=True,
         )

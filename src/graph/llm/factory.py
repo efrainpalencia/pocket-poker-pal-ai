@@ -1,8 +1,8 @@
 import os
-from dotenv import load_dotenv
 from functools import lru_cache
 from typing import Optional
 
+from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 
 load_dotenv()
