@@ -1,23 +1,42 @@
-from typing import Any, Dict
 from graph.state import GraphState
-from graph.chains.grader import grader_chain
+from graph.chains.grader import grade_answer
 
 
-def grade(state: GraphState) -> Dict[str, Any]:
-    print("---GRADE---")
-    result = grader_chain.invoke({
-        "question": state["question"],
-        "context": "\n\n".join(state.get("documents", [])),
-        "answer": state.get("generation", ""),
-    })
+def grade(state: GraphState) -> dict:
+    context = state.get("context_used") or ""
+    question = state.get("question", "") or ""
+    generation = state.get("generation", "") or ""
 
-    # result is GradeOut (pydantic model)
+    gs = state.get("generation_structured")
+
+    # Pull structured fields if present
+    mode = None
+    quote = None
+    clarifying_q = None
+
+    if isinstance(gs, dict):
+        mode = (gs.get("mode") or "").strip() or None
+        quote = (gs.get("quote") or "").strip() or None
+        clarifying_q = (gs.get("clarifying_question") or "").strip() or None
+
+    # ✅ One grading path: deterministic + LLM inside grade_answer
+    result = grade_answer(
+        question=question,
+        context=context,
+        answer=generation,
+        quote=quote,
+        mode=mode,
+        clarifying_question=clarifying_q,
+    )
+
     confidence = float(result.confidence)
-    grounded = confidence >= 0.60 and not result.is_hallucination_risk
+    hallucination = bool(getattr(result, "is_hallucination_risk", False))
+    grounded = confidence >= 0.60 and not hallucination
 
     return {
         "grade_label": result.label,
         "confidence": confidence,
         "grounded": grounded,
         "missing_info": result.missing_info,
+        "is_hallucination_risk": hallucination,
     }

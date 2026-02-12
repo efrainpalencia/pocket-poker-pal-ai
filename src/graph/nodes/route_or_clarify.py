@@ -1,50 +1,88 @@
-from langgraph.types import interrupt
 from graph.state import GraphState
 from graph.chains.classifier import classifier_chain
+from graph.consts import SEMINOLE_NAMESPACE, TDA_NAMESPACE
 
-TOURNAMENT_HINTS = (
-    "tournament", "tda", "level", "levels", "blind level", "ante", "antes",
-    "bag", "bagging", "late reg", "registration", "payout", "prize", "icm"
-)
-CASH_HINTS = (
-    "cash", "rake", "time rake", "table stakes", "buy-in", "must move",
-    "straddle", "seat change"
-)
+TOURNAMENT_HINTS = [
+    "tournament", "level", "levels", "late reg", "late registration", "registration",
+    "bag", "bagging", "break", "icm", "payout", "ante", "button ante", "bb ante",
+    "re-entry", "rebuy", "add-on", "chip race"
+]
+
+CASH_HINTS = [
+    "cash game", "rake", "time rake", "must-move", "table stakes", "buy-in",
+    "straddle", "missed blind", "seat change", "runner", "comp", "time charge"
+]
 
 
-def _heuristic(question: str) -> str | None:
-    q = question.lower()
-    has_t = any(w in q for w in TOURNAMENT_HINTS)
-    has_c = any(w in q for w in CASH_HINTS)
-    if has_t and not has_c:
+def heuristic_classify(question: str) -> str:
+    q = (question or "").lower()
+    if any(h in q for h in TOURNAMENT_HINTS):
         return "tournament"
-    if has_c and not has_t:
+    if any(h in q for h in CASH_HINTS):
         return "cash-game"
-    return None
+    return "unknown"
 
 
-def _normalize(choice: str) -> str | None:
-    c = choice.strip().lower()
-    if c in ("tournament", "tourney", "tda", "t"):
+def normalize_game_type(raw: str) -> str:
+    if not raw:
+        return "unknown"
+
+    s = raw.strip().lower()
+
+    if s in {"tournament", "tourney"}:
         return "tournament"
-    if c in ("cash-game", "cashgame", "cash", "c"):
+    if s in {"cash-game", "cash game", "cash", "cashgame"}:
         return "cash-game"
-    return None
+    if s in {"unknown", "unsure", "unclear"}:
+        return "unknown"
+
+    if "tournament" in s:
+        return "tournament"
+    if "cash" in s:
+        return "cash-game"
+
+    return "unknown"
 
 
 def route_or_clarify(state: GraphState) -> dict:
-    q = state["question"]
-    game_type = state.get("game_type")
-    if game_type in ("tournament", "cash-game"):
-        return {"game_type": game_type}
+    # ✅ Short-circuit if UI (or prior step) already set explicit routing fields
+    existing_game_type = state.get("game_type")
+    existing_namespace = state.get("namespace")
 
-    guessed = _heuristic(q)
-    if guessed:
-        return {"game_type": guessed}
+    if existing_game_type in {"tournament", "cash-game"} and existing_namespace:
+        # Ensure needs_clarification is off; keep meta_filter if present
+        return {
+            "needs_clarification": False,
+            "game_type": existing_game_type,
+            "namespace": existing_namespace,
+            "meta_filter": state.get("meta_filter") or {},
+        }
 
-    # If heuristic can't decide, DON'T guess with LLM. Ask user.
-    user_choice = interrupt(
-        "Is this about **tournament rules** or **cash game rules**? "
-        "Reply: 'tournament' or 'cash-game'."
-    )
-    return {"game_type": _normalize(str(user_choice)) or "cash-game"}
+    q = state.get("question", "")
+
+    game_type = heuristic_classify(q)
+
+    if game_type == "unknown":
+        raw = classifier_chain.invoke({"question": q})
+        game_type = normalize_game_type(raw)
+
+    if game_type == "tournament":
+        return {
+            "needs_clarification": False,
+            "game_type": "tournament",
+            "namespace": TDA_NAMESPACE,
+            "meta_filter": {},
+        }
+
+    if game_type == "cash-game":
+        return {
+            "needs_clarification": False,
+            "game_type": "cash-game",
+            "namespace": SEMINOLE_NAMESPACE,
+            "meta_filter": {"game_type": "cash-game"},
+        }
+
+    return {
+        "needs_clarification": True,
+        "missing_info": ["Is this about tournament rules or cash-game rules?"],
+    }

@@ -21,6 +21,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from api_v1.routes import chat, chat_stream
 
 from cli import cli_run
+from graph.graph import graph
 
 load_dotenv()
 
@@ -64,3 +65,4 @@ app.include_router(chat_stream.router,
 if __name__ == "__main__":
     # uvicorn.run("main:app", port=8000, reload=True)
     cli_run()
+    # graph.get_graph().draw_mermaid_png(output_file_path="graph.png")
