@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 
 from services.chat_stream_service import stream_qa, stream_resume
@@ -10,6 +10,8 @@ router = APIRouter()
 async def qa_stream(
     question: str = Query(..., min_length=1),
     thread_id: str | None = Query(None),
+    request: Request = None,
+    response: Response = None
 ):
     """Stream Server-Sent Events (SSE) for a QA request.
 
@@ -31,6 +33,8 @@ async def qa_stream(
 async def qa_resume_stream(
     thread_id: str = Query(..., min_length=1),
     reply: str = Query(..., min_length=1),
+    request: Request = None,
+    response: Response = None
 ):
     """Stream SSE while resuming an interrupted thread.
 
