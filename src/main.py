@@ -60,15 +60,15 @@ app.add_middleware(
 
 
 # Health Check / Root Route
-@app.get("/")
-def root(request: Request):
+@app.get("/health")
+def health_check(request: Request):
     """Health-check / root endpoint.
 
     Returns a small JSON payload indicating service availability.
     """
 
-    message = "API running!"
-    return {"message": message}
+    message = "healthy"
+    return {"status": message}
 
 
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["Chat"])
@@ -77,6 +77,6 @@ app.include_router(
 )
 
 if __name__ == "__main__":
-    # uvicorn.run("main:app", port=8000, reload=True)
-    cli_run()
+    uvicorn.run("main:app", port=8000, reload=True)
+    # cli_run()
     # graph.get_graph().draw_mermaid_png(output_file_path="graph.png")
