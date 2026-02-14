@@ -77,6 +77,6 @@ app.include_router(
 )
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", port=8000, reload=True)
-    # cli_run()
+    # uvicorn.run("main:app", port=8000, reload=True)
+    cli_run()
     # graph.get_graph().draw_mermaid_png(output_file_path="graph.png")

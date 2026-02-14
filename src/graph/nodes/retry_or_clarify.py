@@ -46,6 +46,7 @@ def retry_or_clarify(state: GraphState) -> dict:
         if selected in {"tournament", "tourney"}:
             return {
                 # ✅ reset is OK here: this is routing setup, not a “retry loop”
+                "force_end": False,
                 "retry_count": 0,
                 "needs_clarification": False,
                 "missing_info": [],
@@ -56,6 +57,7 @@ def retry_or_clarify(state: GraphState) -> dict:
 
         if selected in {"cash-game", "cash game", "cash"}:
             return {
+                "force_end": False,
                 "retry_count": 0,
                 "needs_clarification": False,
                 "missing_info": [],
@@ -65,6 +67,7 @@ def retry_or_clarify(state: GraphState) -> dict:
             }
 
         return {
+            "force_end": False,
             "retry_count": retry_count + 1,
             "needs_clarification": True,
             "missing_info": ["Please choose: tournament or cash-game."],
