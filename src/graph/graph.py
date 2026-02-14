@@ -8,6 +8,7 @@ from graph.nodes.grade import grade
 from graph.nodes.retry_or_clarify import retry_or_clarify
 from graph.nodes.route_or_clarify import route_or_clarify
 from graph.state import GraphState
+from graph.checkpointer import build_checkpointer
 
 load_dotenv()
 
@@ -103,9 +104,9 @@ workflow.add_conditional_edges(
         "end": END,
     },
 )
+checkpointer = build_checkpointer()
 
-
-graph = workflow.compile(checkpointer=MemorySaver())
+graph = workflow.compile(checkpointer=checkpointer)
 
 
 if __name__ == "__main__":

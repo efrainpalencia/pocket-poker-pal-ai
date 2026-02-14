@@ -19,7 +19,7 @@ def _client_ip(request: Request) -> str:
 def build_limiter() -> Limiter:
     storage_uri = os.getenv("REDIS_URL")
     headers_enabled = os.getenv(
-        "RATE_LIMIT_HEADERS_ENABLED", "false").lower() == "false"
+        "RATE_LIMIT_HEADERS_ENABLED", "false").lower() == "true"
 
     if storage_uri:
         return Limiter(
