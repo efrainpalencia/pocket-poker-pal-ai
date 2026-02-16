@@ -1,0 +1,16 @@
+services:
+  app:
+    build: .
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    # Optional: mount code for local dev iteration. Remove for immutable deployments.
+    # volumes:
+    #   - ./:/app:rw
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5

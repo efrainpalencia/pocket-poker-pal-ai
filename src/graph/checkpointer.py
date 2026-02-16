@@ -18,7 +18,13 @@ def build_checkpointer():
         # Local dev fallback
         return MemorySaver()
 
-    from langgraph.checkpoint.postgres import PostgresSaver
+    try:
+        from langgraph.checkpoint.postgres import PostgresSaver
+    except ModuleNotFoundError:
+        # Postgres saver implementation not available in installed packages.
+        # Fall back to in-memory saver so the app can start without this
+        # optional dependency (useful for local/dev environments).
+        return MemorySaver()
 
     # Some implementations return a context-manager (e.g. a
     # @contextlib.contextmanager) from `from_conn_string`. In that case

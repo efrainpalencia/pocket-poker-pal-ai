@@ -76,7 +76,7 @@ app.include_router(
     chat_stream.router, prefix="/api/v1/chat-stream", tags=["Chat-Stream"]
 )
 
-if __name__ == "__main__":
-    # uvicorn.run("main:app", port=8000, reload=True)
-    # cli_run()
-    graph.get_graph().draw_mermaid_png(output_file_path="graph.png")
+# if __name__ == "__main__":
+# uvicorn.run("main:app", port=8000, reload=True)
+# cli_run()
+# graph.get_graph().draw_mermaid_png(output_file_path="graph.png")

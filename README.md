@@ -103,6 +103,36 @@ Prerequisites: Python 3.13+ and a virtual environment (see `pyproject.toml`).
 
 4. Call the API endpoints under `api/v1` (see `src/api/v1/routes`).
 
+## Docker / Deployment
+
+- The project includes a multi-stage `Dockerfile` that builds Python wheels in a builder stage and installs only runtime wheels in the final image to keep it small.
+- Recent changes:
+  - `docker-compose.yml` no longer contains the obsolete `version` field.
+  - `Dockerfile` sets `PIP_DEFAULT_TIMEOUT` and runs `pip wheel` / `pip install` with increased `--timeout` and `--retries` to reduce transient PyPI failures during CI builds.
+  - The runtime image installs `libpq5` so `psycopg` can load the system Postgres client library at runtime.
+  - The builder stage produces a local wheelhouse (`/wheels`) and the runtime stage installs from those wheels.
+
+Recommended Docker commands:
+
+```bash
+docker compose build --no-cache
+docker compose up -d
+docker compose logs --tail=200 app
+```
+
+Notes & troubleshooting:
+
+- If you see PyPI timeouts when building (ReadTimeoutError), try one of the following:
+  - Re-run the build (transient network glitches are common).
+  - Use `--network=host` for the build step (Linux only) to avoid NAT issues.
+  - Mirror PyPI or use an internal package cache, or prepopulate a wheelhouse and commit it to CI storage.
+
+- `psycopg` (psycopg 3) needs either its binary extension or system `libpq` available; the image installs `libpq5` to allow the library to load. If you prefer a static wheel, ensure your CI uses manylinux wheels that bundle the necessary bits.
+
+- To enable Postgres-backed checkpointing, set `DATABASE_URL` in your `.env` or `docker-compose` environment so `langgraph.checkpoint.postgres.PostgresSaver` can connect. The app will gracefully fall back to an in-memory saver if the Postgres provider or `DATABASE_URL` is not present.
+
+If you'd like, I can add a short `Makefile` target or a GitHub Actions workflow to cache wheels and run the build in CI.
+
 ## API Usage
 
 Base URL (local dev): `http://localhost:8000/api/v1`
