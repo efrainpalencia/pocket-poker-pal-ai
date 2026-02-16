@@ -2,13 +2,14 @@ from dotenv import load_dotenv
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
 
-from graph.consts import GENERATE, GRADE, RETRIEVE, RETRY_OR_CLARIFY, ROUTE_OR_CLARIFY
+from graph.checkpointer import build_checkpointer
+from graph.consts import (GENERATE, GRADE, RETRIEVE, RETRY_OR_CLARIFY,
+                          ROUTE_OR_CLARIFY)
 from graph.nodes import generate, retrieve
 from graph.nodes.grade import grade
 from graph.nodes.retry_or_clarify import retry_or_clarify
 from graph.nodes.route_or_clarify import route_or_clarify
 from graph.state import GraphState
-from graph.checkpointer import build_checkpointer
 
 load_dotenv()
 

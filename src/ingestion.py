@@ -52,7 +52,7 @@ def stable_id(
     human-inspectable.
     """
 
-    h = hashlib.sha1(content.encode("utf-8")).hexdigest()[:12]
+    h = hashlib.sha256(content.encode("utf-8")).hexdigest()[:12]
     safe_block = re.sub(r"[^a-zA-Z0-9_-]+", "_", block_id)[:60] or "block"
     return f"{rulebook}__{namespace}__p{page}__{safe_block}__c{chunk_index}__{h}"
 
@@ -277,8 +277,7 @@ def ingest_tda_pdf(file_path: str):
             "source_file": os.path.basename(file_path),
         }
 
-        docs, ids = docs_from_blocks(
-            blocks, base_meta, rulebook_name, namespace)
+        docs, ids = docs_from_blocks(blocks, base_meta, rulebook_name, namespace)
         all_docs.extend(docs)
         all_ids.extend(ids)
 

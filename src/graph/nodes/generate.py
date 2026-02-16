@@ -24,8 +24,7 @@ def _format_context(docs: List[Document], max_docs: int = 6) -> str:
         page = md.get("page")
         section = md.get("section") or md.get("block_id") or ""
         label = " | ".join(
-            [p for p in [source, section,
-                         f"p.{page}" if page is not None else ""] if p]
+            [p for p in [source, section, f"p.{page}" if page is not None else ""] if p]
         )
         text = (d.page_content or "").strip()
         if text:

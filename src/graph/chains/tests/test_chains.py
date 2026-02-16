@@ -1,8 +1,8 @@
 import pytest
 
 from graph.chains.classifier import classifier_chain
-from graph.chains.generation import generation_chain, GenerationOut
-from graph.chains.grader import grader_chain, GradeOut
+from graph.chains.generation import GenerationOut, generation_chain
+from graph.chains.grader import GradeOut, grader_chain
 
 
 def patch_chatopenai_generate(monkeypatch, content: str):
@@ -28,8 +28,7 @@ def patch_chatopenai_generate(monkeypatch, content: str):
 def test_classifier_chain_returns_expected_label(monkeypatch):
     patch_chatopenai_generate(monkeypatch, "tournament")
 
-    out = classifier_chain.invoke(
-        {"question": "In a tournament, can I late reg?"})
+    out = classifier_chain.invoke({"question": "In a tournament, can I late reg?"})
     assert isinstance(out, str)
     assert out.strip().lower() in ("tournament", "cash-game", "unknown")
 
@@ -65,8 +64,7 @@ def test_generation_chain_returns_generationout(monkeypatch):
     monkeypatch.setattr(gen_mod, "generation_chain", FakeChain(), raising=True)
 
     out = gen_mod.generation_chain.invoke(
-        {"context": "A player may post to play.",
-            "question": "Can I post to play?"}
+        {"context": "A player may post to play.", "question": "Can I post to play?"}
     )
 
     assert isinstance(out, GenerationOut)
@@ -97,7 +95,8 @@ def test_generation_chain_not_found_contract(monkeypatch):
     monkeypatch.setattr(gen_mod, "generation_chain", FakeChain(), raising=True)
 
     out = gen_mod.generation_chain.invoke(
-        {"context": "", "question": "What happens here?"})
+        {"context": "", "question": "What happens here?"}
+    )
 
     assert isinstance(out, GenerationOut)
     assert out.mode == "not_found"

@@ -1,10 +1,7 @@
 import pytest
 
-from api.v1.routes.tests.conftest import (
-    assert_json_contract,
-    new_thread_id,
-    skip_if_missing_env,
-)
+from api.v1.routes.tests.conftest import (assert_json_contract, new_thread_id,
+                                          skip_if_missing_env)
 
 pytestmark = pytest.mark.integration
 

@@ -14,8 +14,8 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-from api.v1.routes import chat, chat_stream
 from api.core.rate_limit import build_limiter
+from api.v1.routes import chat, chat_stream
 from cli import cli_run
 from graph.graph import graph
 
@@ -78,5 +78,5 @@ app.include_router(
 
 if __name__ == "__main__":
     # uvicorn.run("main:app", port=8000, reload=True)
-    cli_run()
-    # graph.get_graph().draw_mermaid_png(output_file_path="graph.png")
+    # cli_run()
+    graph.get_graph().draw_mermaid_png(output_file_path="graph.png")

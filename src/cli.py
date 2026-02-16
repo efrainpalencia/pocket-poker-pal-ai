@@ -1,4 +1,5 @@
 from langgraph.types import Command
+
 from graph.graph import graph
 
 
@@ -32,20 +33,16 @@ def cli_run():
         result = graph.invoke(
             {
                 "question": q,
-
                 # ✅ wipe persisted routing so route_or_clarify cannot short-circuit
                 "game_type": None,
                 "namespace": None,
                 "meta_filter": {},
-
                 # ✅ force graph to ask ruleset every turn (your redundancy)
                 "needs_clarification": True,
                 "missing_info": ["Is this about tournament rules or cash-game rules?"],
-
                 # ✅ clear sticky control flags
                 "force_end": False,
                 "retry_count": 0,
-
                 # optional: clear turn artifacts
                 "documents": [],
                 "generation": "",
@@ -65,7 +62,8 @@ def cli_run():
             interrupts_seen += 1
             if interrupts_seen > max_interrupts:
                 print(
-                    "\nAssistant: Stopping due to too many clarification loops (debug safety cap).")
+                    "\nAssistant: Stopping due to too many clarification loops (debug safety cap)."
+                )
                 break
 
             intr = result["__interrupt__"][0]
@@ -74,8 +72,9 @@ def cli_run():
 
             # If this is the ruleset prompt, allow Enter to accept the CLI selection
             if isinstance(payload, dict) and payload.get("type") == "choose_ruleset":
-                reply = input(
-                    f"You (reply) [Enter = {cli_game_type}]: ").strip().lower()
+                reply = (
+                    input(f"You (reply) [Enter = {cli_game_type}]: ").strip().lower()
+                )
                 if not reply:
                     reply = cli_game_type
             else:

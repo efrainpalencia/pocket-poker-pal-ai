@@ -6,8 +6,9 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from api.v1.routes.chat import router as chat_router
-from api.v1.routes.chat_stream import router as chat_stream_router
+# Import routers inside the app fixture to avoid heavy startup work at import time
+chat_router = None
+chat_stream_router = None
 
 REQUIRED_ENV = ["OPENAI_API_KEY", "PINECONE_API_KEY", "INDEX_NAME"]
 
@@ -52,9 +53,18 @@ def app() -> FastAPI:
     Minimal FastAPI app for API-level tests.
     Routers are included as-is; we auto-detect any base prefix.
     """
+    # Ensure the graph checkpointer falls back to an in-memory saver during tests
+    # to avoid DB connections or context-manager return values at import time.
+    os.environ.setdefault("DATABASE_URL", "")
+
+    # Import routers here so module-level side-effects (like building graph
+    # singletons) happen after we control the environment.
+    from api.v1.routes.chat import router as _chat_router
+    from api.v1.routes.chat_stream import router as _chat_stream_router
+
     a = FastAPI()
-    a.include_router(chat_router)
-    a.include_router(chat_stream_router)
+    a.include_router(_chat_router)
+    a.include_router(_chat_stream_router)
     return a
 
 

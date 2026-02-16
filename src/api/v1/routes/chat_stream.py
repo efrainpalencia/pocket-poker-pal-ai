@@ -11,7 +11,7 @@ async def qa_stream(
     question: str = Query(..., min_length=1),
     thread_id: str | None = Query(None),
     request: Request = None,
-    response: Response = None
+    response: Response = None,
 ):
     """Stream Server-Sent Events (SSE) for a QA request.
 
@@ -34,7 +34,7 @@ async def qa_resume_stream(
     thread_id: str = Query(..., min_length=1),
     reply: str = Query(..., min_length=1),
     request: Request = None,
-    response: Response = None
+    response: Response = None,
 ):
     """Stream SSE while resuming an interrupted thread.
 

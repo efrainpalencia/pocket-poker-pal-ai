@@ -1,4 +1,5 @@
 import os
+
 from fastapi import Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -18,8 +19,7 @@ def _client_ip(request: Request) -> str:
 
 def build_limiter() -> Limiter:
     storage_uri = os.getenv("REDIS_URL")
-    headers_enabled = os.getenv(
-        "RATE_LIMIT_HEADERS_ENABLED", "false").lower() == "true"
+    headers_enabled = os.getenv("RATE_LIMIT_HEADERS_ENABLED", "false").lower() == "true"
 
     if storage_uri:
         return Limiter(

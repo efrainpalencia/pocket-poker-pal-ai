@@ -93,11 +93,11 @@ def test_graph_end_to_end_interrupt_and_resume():
     config = {"configurable": {"thread_id": "pytest-e2e-interrupt-1"}}
 
     out = run_until_done(
-        inputs={"question": "Can I take this seat and what do I have to post?"},
+        inputs={"question": "Is it a misdeal"},
         config=config,
         defaults={
             "ruleset_choice": "cash-game",
-            "free_text": "Cash-game. New player sits in; asking what blinds must be posted to enter.",
+            "free_text": "Cash-game. The dealer dealt the wrong player first.",
         },
     )
 

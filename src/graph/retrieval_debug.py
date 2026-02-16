@@ -1,4 +1,5 @@
 from typing import List, Optional
+
 from langchain_core.documents import Document
 from langchain_pinecone import PineconeVectorStore
 

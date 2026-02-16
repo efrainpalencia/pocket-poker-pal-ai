@@ -1,11 +1,8 @@
 import pytest
 
-from api.v1.routes.tests.conftest import (
-    assert_sse_terminal_contract,
-    collect_until_terminal_strict,
-    new_thread_id,
-    skip_if_missing_env,
-)
+from api.v1.routes.tests.conftest import (assert_sse_terminal_contract,
+                                          collect_until_terminal_strict,
+                                          new_thread_id, skip_if_missing_env)
 
 pytestmark = pytest.mark.integration
 

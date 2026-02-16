@@ -4,6 +4,8 @@ from uuid import uuid4
 
 from langgraph.types import Command
 
+from api.core.rate_limit import _client_ip
+from api.core.thread_token import create_thread_token, verify_thread_token
 from graph.graph import graph
 
 DEFAULT_CLARIFY_PROMPT = {
@@ -127,7 +129,9 @@ def _is_interrupted(thread_id: str) -> Tuple[bool, Optional[dict]]:
     return False, None
 
 
-async def stream_qa(question: str, thread_id: str | None = None) -> AsyncIterator[str]:
+async def stream_qa(
+    question: str, request=None, thread_id: str | None = None
+) -> AsyncIterator[str]:
     """Asynchronously stream Server-Sent Events for a QA request.
 
     Yields SSE-formatted strings representing `start`, `token`,
@@ -135,7 +139,11 @@ async def stream_qa(question: str, thread_id: str | None = None) -> AsyncIterato
     """
 
     thread_id = thread_id or str(uuid4())
-    yield sse({"type": "start", "thread_id": thread_id})
+
+    ip = None
+    thread_token = create_thread_token(thread_id=thread_id, ip=ip)
+
+    yield sse({"type": "start", "thread_id": thread_id, "thread_token": thread_token})
 
     async for event in graph.astream_events(
         {"question": question},
@@ -152,6 +160,7 @@ async def stream_qa(question: str, thread_id: str | None = None) -> AsyncIterato
                 {
                     "type": "needs_clarification",
                     "thread_id": thread_id,
+                    "thread_token": thread_token,
                     "prompt": prompt,
                 }
             )
@@ -163,6 +172,7 @@ async def stream_qa(question: str, thread_id: str | None = None) -> AsyncIterato
             {
                 "type": "needs_clarification",
                 "thread_id": thread_id,
+                "thread_token": thread_token,
                 "prompt": prompt or DEFAULT_CLARIFY_PROMPT,
             }
         )
@@ -172,19 +182,25 @@ async def stream_qa(question: str, thread_id: str | None = None) -> AsyncIterato
         {
             "type": "complete",
             "thread_id": thread_id,
+            "thread_token": thread_token,
             "generation": _final_generation(thread_id) or "",
         }
     )
 
 
-async def stream_resume(thread_id: str, reply: str) -> AsyncIterator[str]:
+async def stream_resume(
+    thread_id: str, thread_token: str, reply: str, request=None
+) -> AsyncIterator[str]:
     """Asynchronously stream Server-Sent Events when resuming a thread.
 
     Yields SSE-formatted strings representing `resume`, incremental
     `token` events and final `complete` or `needs_clarification`.
     """
+    ip = _client_ip(request) if request else None
 
-    yield sse({"type": "resume", "thread_id": thread_id})
+    verify_thread_token(token=thread_token, thread_id=thread_id, ip=ip)
+
+    yield sse({"type": "resume", "thread_id": thread_id, "thread_token": thread_token})
 
     async for event in graph.astream_events(
         Command(resume=reply),
@@ -201,6 +217,7 @@ async def stream_resume(thread_id: str, reply: str) -> AsyncIterator[str]:
                 {
                     "type": "needs_clarification",
                     "thread_id": thread_id,
+                    "thead_token": thread_token,
                     "prompt": prompt,
                 }
             )
@@ -212,6 +229,7 @@ async def stream_resume(thread_id: str, reply: str) -> AsyncIterator[str]:
             {
                 "type": "needs_clarification",
                 "thread_id": thread_id,
+                "thread_token": thread_token,
                 "prompt": prompt or DEFAULT_CLARIFY_PROMPT,
             }
         )
@@ -221,6 +239,7 @@ async def stream_resume(thread_id: str, reply: str) -> AsyncIterator[str]:
         {
             "type": "complete",
             "thread_id": thread_id,
+            "thread_token": thread_token,
             "generation": _final_generation(thread_id) or "",
         }
     )

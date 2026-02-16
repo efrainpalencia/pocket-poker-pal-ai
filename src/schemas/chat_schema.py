@@ -61,6 +61,7 @@ class AskIn(BaseModel):
 
 class ResumeIn(BaseModel):
     thread_id: str = Field(min_length=1)
+    thread_token: str = Field(min_length=10)
     # UI sends either "tournament" or free text
     reply: str = Field(min_length=1)
 
@@ -71,5 +72,6 @@ class ResumeIn(BaseModel):
 class QAOut(BaseModel):
     status: Literal["needs_clarification", "complete"]
     thread_id: str
+    thread_token: str
     prompt: Optional[InterruptPrompt] = None
     generation: Optional[str] = None

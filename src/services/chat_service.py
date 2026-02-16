@@ -3,6 +3,8 @@ from uuid import uuid4
 
 from langgraph.types import Command
 
+from api.core.rate_limit import _client_ip
+from api.core.thread_token import create_thread_token, verify_thread_token
 from graph.graph import graph
 
 
@@ -36,7 +38,7 @@ def _extract_interrupt_from_output(out: dict) -> dict | None:
     return None
 
 
-def ask_question(question: str, thread_id: str | None = None) -> dict:
+def ask_question(question: str, request=None, thread_id: str | None = None) -> dict:
     """Invoke the graph with a question and return a QA-style result.
 
     The function will create a new `thread_id` if one is not provided,
@@ -55,6 +57,11 @@ def ask_question(question: str, thread_id: str | None = None) -> dict:
 
     thread_id = thread_id or str(uuid4())
 
+    ip = _client_ip(request) if request else None
+    # Pass the actual thread_id to create the token (was incorrectly using
+    # the uninitialized local variable `thread_token`).
+    thread_token = create_thread_token(thread_id=thread_id, ip=ip)
+
     out = graph.invoke(
         {"question": question},
         config=cfg(thread_id),
@@ -65,19 +72,23 @@ def ask_question(question: str, thread_id: str | None = None) -> dict:
         return {
             "status": "needs_clarification",
             "thread_id": thread_id,
+            "thread_token": thread_token,
             "prompt": interrupt,
         }
 
     return {
         "status": "complete",
         "thread_id": thread_id,
+        "thread_token": thread_token,
         "generation": out.get("generation"),
         "confidence": out.get("confidence"),
         "grounded": out.get("grounded"),
     }
 
 
-def resume_question(thread_id: str, reply: str) -> dict:
+def resume_question(
+    thread_id: str, thread_token: str, reply: str, request=None
+) -> dict:
     """Resume an interrupted thread by sending a reply command to the graph.
 
     Args:
@@ -88,6 +99,8 @@ def resume_question(thread_id: str, reply: str) -> dict:
         A dict similar to `ask_question`, indicating `needs_clarification`
         or `complete` and including generation/confidence metadata.
     """
+    ip = _client_ip(request) if request else None
+    verify_thread_token(token=thread_token, thread_id=thread_id, ip=ip)
 
     out = graph.invoke(
         Command(resume=reply),
@@ -99,12 +112,14 @@ def resume_question(thread_id: str, reply: str) -> dict:
         return {
             "status": "needs_clarification",
             "thread_id": thread_id,
+            "thread_token": thread_token,
             "prompt": interrupt,
         }
 
     return {
         "status": "complete",
         "thread_id": thread_id,
+        "thread_token": thread_token,
         "generation": out.get("generation"),
         "confidence": out.get("confidence"),
         "grounded": out.get("grounded"),

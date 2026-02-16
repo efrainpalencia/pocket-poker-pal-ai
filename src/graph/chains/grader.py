@@ -25,8 +25,7 @@ class GradeOut(BaseModel):
 
 _NOT_FOUND_PREFIX = "Not found in the provided text."
 QUOTE_RE = re.compile(r'(?im)^\s*Quote:\s*"?(.*?)"?\s*$', re.MULTILINE)
-CLARIFY_RE = re.compile(
-    r"(?im)^\s*Clarifying Question:\s*(.+)\s*$", re.MULTILINE)
+CLARIFY_RE = re.compile(r"(?im)^\s*Clarifying Question:\s*(.+)\s*$", re.MULTILINE)
 
 
 def extract_quote(answer: str) -> Optional[str]:
@@ -72,6 +71,35 @@ def quote_in_context(quote: str, context: str) -> bool:
         return " ".join(s.split())
 
     return norm(quote) in norm(context)
+
+
+def robust_quote_in_context(quote: str, context: str) -> bool:
+    """More permissive quote matching.
+
+    This function normalizes whitespace, punctuation, and common
+    unicode quote characters before checking containment. It helps
+    avoid false negatives when PDF-extracted text contains odd
+    punctuation or non-breaking spaces.
+    """
+
+    if not quote or not context:
+        return False
+
+    import re
+
+    def normalize(s: str) -> str:
+        # replace various unicode quote characters with plain quote
+        s = s.replace("\u201c", '"').replace("\u201d", '"')
+        s = s.replace("\u2018", "'").replace("\u2019", "'")
+        # collapse whitespace
+        s = " ".join(s.split())
+        # remove punctuation except alphanumerics and spaces
+        s = re.sub(r"[^0-9A-Za-z\s]", "", s)
+        return s.lower()
+
+    nq = normalize(quote)
+    nc = normalize(context)
+    return nq in nc
 
 
 # -------------------------
@@ -155,24 +183,20 @@ def grade_answer(
         return GradeOut(
             confidence=0.0,
             label="NO",
-            reasons=[
-                "Model indicated the answer was not found in the provided text."],
+            reasons=["Model indicated the answer was not found in the provided text."],
             missing_info=missing,
             is_hallucination_risk=False,
         )
 
-    # 2) If quote exists it MUST appear in context
+    # 2) If quote exists try to verify it appears in context. Prefer a
+    # strict match but fall back to a more permissive check so small
+    # formatting/encoding differences don't falsely mark answers as
+    # hallucinated. If both checks fail, mark `quote_mismatch` and
+    # continue to the LLM grader rather than failing immediately.
+    quote_mismatch = False
     if quote and not quote_in_context(quote, context):
-        return GradeOut(
-            confidence=0.0,
-            label="NO",
-            reasons=[
-                "Quote provided by the assistant does not appear in the retrieved context.",
-                "This indicates a likely hallucination or mismatch between answer and sources.",
-            ],
-            missing_info=[],
-            is_hallucination_risk=True,
-        )
+        if not robust_quote_in_context(quote, context):
+            quote_mismatch = True
 
     # 2b) If mode says direct/inference but quote is missing => fail fast
     if mode in {"direct", "inference"} and not quote:
@@ -192,14 +216,21 @@ def grade_answer(
     )
 
     # 4) Cap inference confidence (structured mode OR string prefix)
-    is_inference = (mode == "inference") or answer.lstrip(
-    ).startswith("Inference:")
+    is_inference = (mode == "inference") or answer.lstrip().startswith("Inference:")
     if is_inference:
         llm_result.confidence = float(min(llm_result.confidence, 0.84))
         if llm_result.confidence >= 0.60:
             llm_result.label = "PARTIAL"
         else:
             llm_result.label = "NO"
+
+    # If we detected a quote mismatch, reduce trust in the grader output
+    # and force hallucination risk to True. This avoids giving a high
+    # confidence score when the quoted evidence cannot be robustly
+    # located in the retrieved context.
+    if quote_mismatch:
+        llm_result.confidence = float(min(llm_result.confidence, 0.84))
+        llm_result.is_hallucination_risk = True
 
     # 5) Ensure label matches thresholds
     c = float(llm_result.confidence)
