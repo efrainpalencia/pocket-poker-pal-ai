@@ -19,7 +19,11 @@ def _normalize_ruleset(raw: str | None) -> str:
 
 def _routing_for(game_type: str) -> dict:
     if game_type == "tournament":
-        return {"game_type": "tournament", "namespace": TDA_NAMESPACE, "meta_filter": {}}
+        return {
+            "game_type": "tournament",
+            "namespace": TDA_NAMESPACE,
+            "meta_filter": {},
+        }
     if game_type == "cash-game":
         return {
             "game_type": "cash-game",
@@ -39,7 +43,11 @@ def _needs_ruleset_prompt(state: GraphState) -> bool:
     - route_or_clarify set needs_clarification True, OR
     - game_type/namespace missing
     """
-    return bool(state.get("needs_clarification")) or not state.get("game_type") or not state.get("namespace")
+    return (
+        bool(state.get("needs_clarification"))
+        or not state.get("game_type")
+        or not state.get("namespace")
+    )
 
 
 def _build_ruleset_prompt(state: GraphState) -> dict:
@@ -104,6 +112,8 @@ def retry_or_clarify(state: GraphState) -> dict:
                 "prompt": None,
                 "last_game_type": selected,
                 **_routing_for(selected),
+                "routing_locked": True,
+                "fallback_attempt": False,
             }
 
         # Invalid selection: ask again (DON’T burn retries)

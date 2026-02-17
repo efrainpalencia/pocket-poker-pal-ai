@@ -59,7 +59,11 @@ def _extract_interrupt_from_output(output: Any) -> Optional[dict]:
 
     value may be a dict (structured) or a string.
     """
-    if not (isinstance(output, dict) and "__interrupt__" in output and output["__interrupt__"]):
+    if not (
+        isinstance(output, dict)
+        and "__interrupt__" in output
+        and output["__interrupt__"]
+    ):
         return None
 
     intr = output["__interrupt__"][0]

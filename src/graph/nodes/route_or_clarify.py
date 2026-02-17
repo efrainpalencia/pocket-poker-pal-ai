@@ -3,15 +3,39 @@ from graph.consts import SEMINOLE_NAMESPACE, TDA_NAMESPACE
 from graph.state import GraphState
 
 TOURNAMENT_HINTS = [
-    "tournament", "level", "levels", "late reg", "late registration",
-    "registration", "bag", "bagging", "break", "icm", "payout", "ante",
-    "button ante", "bb ante", "re-entry", "rebuy", "add-on", "chip race",
+    "tournament",
+    "level",
+    "levels",
+    "late reg",
+    "late registration",
+    "registration",
+    "bag",
+    "bagging",
+    "break",
+    "icm",
+    "payout",
+    "ante",
+    "button ante",
+    "bb ante",
+    "re-entry",
+    "rebuy",
+    "add-on",
+    "chip race",
 ]
 
 CASH_HINTS = [
-    "cash game", "rake", "time rake", "must-move", "table stakes",
-    "buy-in", "straddle", "missed blind", "seat change", "runner",
-    "comp", "time charge",
+    "cash game",
+    "rake",
+    "time rake",
+    "must-move",
+    "table stakes",
+    "buy-in",
+    "straddle",
+    "missed blind",
+    "seat change",
+    "runner",
+    "comp",
+    "time charge",
 ]
 
 
@@ -93,50 +117,63 @@ def _has_hint_for(game_type: str, question: str) -> bool:
 
 
 def route_or_clarify(state: GraphState) -> dict:
-    """
-    - Sticky ruleset within a thread (Option 1 session behavior)
-    - Reconfirm ruleset on strong evidence of a switch (Option 3)
-    """
     q = state.get("question", "") or ""
 
     existing_game_type = state.get("game_type")
     existing_namespace = state.get("namespace")
+    routing_locked = bool(state.get("routing_locked", False))
 
-    # 1) Heuristic classification (strong signal)
-    inferred_heur = heuristic_classify(q)
+    # 1) Infer for THIS question
+    inferred = heuristic_classify(q)
+    inferred_is_strong = inferred in {"tournament", "cash-game"}
 
-    # 2) LLM classifier only if heuristic doesn't know
-    inferred = inferred_heur
-    inferred_source = "heuristic"
     if inferred == "unknown":
         raw = classifier_chain.invoke({"question": q})
         inferred = normalize_game_type(raw)
-        inferred_source = "llm"
+        # treat classifier result as weaker than heuristic
+        inferred_is_strong = False if inferred == "unknown" else True
 
-    # 3) If we already have routing, decide whether to keep it
-    if existing_game_type in {"tournament", "cash-game"} and existing_namespace:
-        # ✅ Reconfirm only on strong signal:
-        # - heuristic says opposite (strong), OR
-        # - llm says opposite AND question contains explicit opposite hints
-        if inferred in {"tournament", "cash-game"} and inferred != existing_game_type:
-            if inferred_source == "heuristic" or _has_hint_for(inferred, q):
-                return _ask_to_reconfirm(existing_game_type)
+    # 2) If user explicitly chose ruleset earlier, keep it unless question is strongly opposite
+    if (
+        routing_locked
+        and existing_game_type in {"tournament", "cash-game"}
+        and existing_namespace
+    ):
+        if (
+            inferred in {"tournament", "cash-game"}
+            and inferred != existing_game_type
+            and inferred_is_strong
+        ):
+            routed = _routing_for(inferred)
+            routed["inferred_game_type"] = inferred
+            return routed
 
         routed = _routing_for(existing_game_type)
-        routed["last_game_type"] = existing_game_type
+        routed["inferred_game_type"] = (
+            inferred if inferred != "unknown" else existing_game_type
+        )
         return routed
 
-    # 4) No existing routing -> use inferred if confident, else ask
+    # 3) If we have existing routing but it's not locked, allow auto-switch when inferred differs
+    if existing_game_type in {"tournament", "cash-game"} and existing_namespace:
+        if inferred in {"tournament", "cash-game"} and inferred != existing_game_type:
+            # auto-switch (no prompt) because user didn't explicitly lock routing
+            routed = _routing_for(inferred)
+            routed["inferred_game_type"] = inferred
+            return routed
+
+        routed = _routing_for(existing_game_type)
+        routed["inferred_game_type"] = existing_game_type
+        return routed
+
+    # 4) No existing routing -> use inferred or ask
     if inferred in {"tournament", "cash-game"}:
         routed = _routing_for(inferred)
-        routed["last_game_type"] = inferred
+        routed["inferred_game_type"] = inferred
         return routed
 
-    # 5) Unknown -> ask
     return {
         "needs_clarification": True,
-        "namespace": None,
-        "meta_filter": {},
         "missing_info": ["Is this about tournament rules or cash-game rules?"],
         "prompt": {
             "type": "choose_ruleset",

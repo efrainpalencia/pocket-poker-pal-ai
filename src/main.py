@@ -9,8 +9,9 @@ from slowapi.errors import RateLimitExceeded
 
 from api.core.rate_limit import build_limiter
 from api.v1.routes import chat, chat_stream
-from graph.graph import build_graph
 from graph.checkpointer import build_checkpointer, close_checkpointer
+from graph.graph import build_graph
+from graph.workflow import write_graph_png
 
 load_dotenv()
 
@@ -70,10 +71,12 @@ def health_check(request: Request):
 
 
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["Chat"])
-app.include_router(chat_stream.router,
-                   prefix="/api/v1/chat-stream", tags=["Chat-Stream"])
+app.include_router(
+    chat_stream.router, prefix="/api/v1/chat-stream", tags=["Chat-Stream"]
+)
 
 
 # if __name__ == "__main__":
 # uvicorn.run("main:app", port=8000, reload=True)
 # cli_run()
+# write_graph_png()

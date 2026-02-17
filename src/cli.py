@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from langgraph.types import Command
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.types import Command
 
 # plus close_checkpointer if you added it
 from graph.checkpointer import build_checkpointer
@@ -80,7 +80,8 @@ def cli_run(thread_id: str | None = None) -> None:
             loops += 1
             if loops > max_loops:
                 print(
-                    "\nAssistant: Too many clarification loops; stopping (safety cap).")
+                    "\nAssistant: Too many clarification loops; stopping (safety cap)."
+                )
                 break
 
             # Show prompt message nicely
@@ -93,8 +94,9 @@ def cli_run(thread_id: str | None = None) -> None:
             # If the prompt is choose_ruleset, let Enter accept CLI selection
             reply: str
             if isinstance(prompt, dict) and prompt.get("type") == "choose_ruleset":
-                reply = input(
-                    f"You (reply) [Enter = {cli_game_type}]: ").strip().lower()
+                reply = (
+                    input(f"You (reply) [Enter = {cli_game_type}]: ").strip().lower()
+                )
                 if not reply:
                     reply = cli_game_type
             else:
