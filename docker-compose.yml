@@ -9,8 +9,8 @@ services:
     # Optional: mount code for local dev iteration. Remove for immutable deployments.
     # volumes:
     #   - ./:/app:rw
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
+    # healthcheck:
+    #   test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+    #   interval: 30s
+    #   timeout: 5s
+    #   retries: 5

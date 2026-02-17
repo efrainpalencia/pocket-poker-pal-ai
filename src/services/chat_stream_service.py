@@ -6,7 +6,6 @@ from langgraph.types import Command
 
 from api.core.rate_limit import _client_ip
 from api.core.thread_token import create_thread_token, verify_thread_token
-from graph.graph import graph
 
 DEFAULT_CLARIFY_PROMPT = {
     "type": "choose_ruleset",
@@ -16,37 +15,34 @@ DEFAULT_CLARIFY_PROMPT = {
 
 
 def cfg(thread_id: str) -> dict[str, Any]:
-    """Return a minimal langgraph configuration for a given thread.
-
-    Args:
-        thread_id: The thread identifier to scope graph state/configuration.
-
-    Returns:
-        A dict suitable for passing as `config` to `graph.astream_events`.
-    """
-
+    """Return a minimal langgraph configuration for a given thread."""
     return {"configurable": {"thread_id": thread_id}}
 
 
 def sse(data: dict) -> str:
-    """Serialize a single SSE (Server-Sent Event) data payload.
-
-    Args:
-        data: JSON-serializable mapping to send as the SSE `data` field.
-
-    Returns:
-        A string formatted as an SSE `data: ...\n\n` block.
-    """
-
+    """Serialize a single SSE (Server-Sent Event) data payload."""
     return f"data: {json.dumps(data)}\n\n"
 
 
-def _extract_token(event: dict) -> Optional[str]:
-    """Extract a streamed token (text chunk) from a langgraph event.
-
-    Returns the token string when present, otherwise `None`.
+def _get_graph(request):
     """
+    Retrieve the compiled LangGraph instance from FastAPI app state.
 
+    Requires that main.py sets: app.state.graph = build_graph(...)
+    """
+    if request is None:
+        raise RuntimeError("Request is required to access app.state.graph")
+
+    graph = getattr(request.app.state, "graph", None)
+    if graph is None:
+        raise RuntimeError(
+            "LangGraph not initialized. Ensure main.py lifespan sets app.state.graph"
+        )
+    return graph
+
+
+def _extract_token(event: dict) -> Optional[str]:
+    """Extract a streamed token (text chunk) from a langgraph event."""
     if event.get("event") != "on_chat_model_stream":
         return None
     chunk = event.get("data", {}).get("chunk")
@@ -56,60 +52,49 @@ def _extract_token(event: dict) -> Optional[str]:
     return text if text else None
 
 
-def _extract_interrupt(event: dict) -> Optional[dict]:
+def _extract_interrupt_from_output(output: Any) -> Optional[dict]:
     """
-    LangGraph interrupt comes back as:
-      output = {"__interrupt__": [Interrupt(value=..., id=...)]}
+    LangGraph interrupt output:
+      {"__interrupt__": [Interrupt(value=..., id=...)]}
+
     value may be a dict (structured) or a string.
     """
-    if event.get("event") != "on_chain_end":
-        return None
-
-    output = event.get("data", {}).get("output")
-    if not (isinstance(output, dict) and "__interrupt__" in output):
+    if not (isinstance(output, dict) and "__interrupt__" in output and output["__interrupt__"]):
         return None
 
     intr = output["__interrupt__"][0]
     value = getattr(intr, "value", None)
 
-    # If you used interrupt({...}) then value is already a dict
     if isinstance(value, dict):
         return value
 
-    # Otherwise treat it as free_text prompt
     if isinstance(value, str) and value.strip():
         return {"type": "free_text", "message": value.strip()}
 
     return None
 
 
-def _state(thread_id: str):
-    """Return the current persisted graph state for a given thread.
+def _extract_interrupt(event: dict) -> Optional[dict]:
+    """Extract interrupt prompt from astream_events on_chain_end output."""
+    if event.get("event") != "on_chain_end":
+        return None
+    output = event.get("data", {}).get("output")
+    return _extract_interrupt_from_output(output)
 
-    Args:
-        thread_id: Thread identifier used to scope stored state.
 
-    Returns:
-        The LangGraph state object for the thread.
-    """
-
+def _state(graph, thread_id: str):
+    """Return the current persisted graph state for a given thread."""
     return graph.get_state(cfg(thread_id))
 
 
-def _final_generation(thread_id: str) -> Optional[str]:
+def _final_generation(graph, thread_id: str) -> Optional[str]:
     """Return the final `generation` value from persisted state, if any."""
+    return (_state(graph, thread_id).values or {}).get("generation")
 
-    return (_state(thread_id).values or {}).get("generation")
 
-
-def _is_interrupted(thread_id: str) -> Tuple[bool, Optional[dict]]:
-    """Determine whether a thread is currently interrupted.
-
-    Returns a tuple `(is_interrupted, prompt)` where `prompt` is the
-    interrupt payload (when available) or `None`.
-    """
-
-    st = _state(thread_id)
+def _is_interrupted(graph, thread_id: str) -> Tuple[bool, Optional[dict]]:
+    """Determine whether a thread is currently interrupted."""
+    st = _state(graph, thread_id)
 
     tasks = getattr(st, "tasks", None) or []
     for t in tasks:
@@ -130,17 +115,14 @@ def _is_interrupted(thread_id: str) -> Tuple[bool, Optional[dict]]:
 
 
 async def stream_qa(
-    question: str, request=None, thread_id: str | None = None
+    question: str, request, thread_id: str | None = None
 ) -> AsyncIterator[str]:
-    """Asynchronously stream Server-Sent Events for a QA request.
-
-    Yields SSE-formatted strings representing `start`, `token`,
-    `needs_clarification`, and `complete` events.
-    """
+    """Asynchronously stream Server-Sent Events for a QA request."""
+    graph = _get_graph(request)
 
     thread_id = thread_id or str(uuid4())
 
-    ip = None
+    ip = _client_ip(request)
     thread_token = create_thread_token(thread_id=thread_id, ip=ip)
 
     yield sse({"type": "start", "thread_id": thread_id, "thread_token": thread_token})
@@ -166,7 +148,7 @@ async def stream_qa(
             )
             return
 
-    interrupted, prompt = _is_interrupted(thread_id)
+    interrupted, prompt = _is_interrupted(graph, thread_id)
     if interrupted:
         yield sse(
             {
@@ -183,21 +165,18 @@ async def stream_qa(
             "type": "complete",
             "thread_id": thread_id,
             "thread_token": thread_token,
-            "generation": _final_generation(thread_id) or "",
+            "generation": _final_generation(graph, thread_id) or "",
         }
     )
 
 
 async def stream_resume(
-    thread_id: str, thread_token: str, reply: str, request=None
+    thread_id: str, thread_token: str, reply: str, request
 ) -> AsyncIterator[str]:
-    """Asynchronously stream Server-Sent Events when resuming a thread.
+    """Asynchronously stream Server-Sent Events when resuming a thread."""
+    graph = _get_graph(request)
 
-    Yields SSE-formatted strings representing `resume`, incremental
-    `token` events and final `complete` or `needs_clarification`.
-    """
-    ip = _client_ip(request) if request else None
-
+    ip = _client_ip(request)
     verify_thread_token(token=thread_token, thread_id=thread_id, ip=ip)
 
     yield sse({"type": "resume", "thread_id": thread_id, "thread_token": thread_token})
@@ -217,13 +196,13 @@ async def stream_resume(
                 {
                     "type": "needs_clarification",
                     "thread_id": thread_id,
-                    "thead_token": thread_token,
+                    "thread_token": thread_token,  # ✅ fixed typo
                     "prompt": prompt,
                 }
             )
             return
 
-    interrupted, prompt = _is_interrupted(thread_id)
+    interrupted, prompt = _is_interrupted(graph, thread_id)
     if interrupted:
         yield sse(
             {
@@ -240,6 +219,6 @@ async def stream_resume(
             "type": "complete",
             "thread_id": thread_id,
             "thread_token": thread_token,
-            "generation": _final_generation(thread_id) or "",
+            "generation": _final_generation(graph, thread_id) or "",
         }
     )

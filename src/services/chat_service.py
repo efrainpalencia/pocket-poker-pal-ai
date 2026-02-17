@@ -1,31 +1,37 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from uuid import uuid4
 
 from langgraph.types import Command
 
 from api.core.rate_limit import _client_ip
 from api.core.thread_token import create_thread_token, verify_thread_token
-from graph.graph import graph
 
 
 def cfg(thread_id: str) -> Dict[str, Any]:
-    """Return a minimal langgraph configuration for a given thread.
-
-    Args:
-        thread_id: The thread identifier to scope graph state/configuration.
-
-    Returns:
-        A dict suitable for passing as `config` to `graph.invoke`.
-    """
-
+    """Return a minimal langgraph configuration for a given thread."""
     return {"configurable": {"thread_id": thread_id}}
 
 
+def _get_graph(request):
+    """
+    Retrieve the compiled LangGraph instance from FastAPI app state.
+
+    Requires that main.py sets: app.state.graph = build_graph(...)
+    """
+    if request is None:
+        raise RuntimeError("Request is required to access app.state.graph")
+
+    graph = getattr(request.app.state, "graph", None)
+    if graph is None:
+        raise RuntimeError(
+            "LangGraph not initialized. Ensure main.py lifespan sets app.state.graph"
+        )
+    return graph
+
+
 def _extract_interrupt_from_output(out: dict) -> dict | None:
-    """
-    Detect LangGraph interrupt payload from invoke() result.
-    """
-    if isinstance(out, dict) and "__interrupt__" in out:
+    """Detect LangGraph interrupt payload from invoke() result."""
+    if isinstance(out, dict) and "__interrupt__" in out and out["__interrupt__"]:
         intr = out["__interrupt__"][0]
         value = getattr(intr, "value", None)
 
@@ -38,28 +44,13 @@ def _extract_interrupt_from_output(out: dict) -> dict | None:
     return None
 
 
-def ask_question(question: str, request=None, thread_id: str | None = None) -> dict:
-    """Invoke the graph with a question and return a QA-style result.
-
-    The function will create a new `thread_id` if one is not provided,
-    call the central `graph.invoke`, and convert interrupt outputs into
-    a `needs_clarification` response when appropriate.
-
-    Args:
-        question: User question text.
-        thread_id: Optional thread identifier to resume state.
-
-    Returns:
-        A dictionary conforming to `QAOut`-like shape with `status`,
-        `thread_id`, and either `prompt` (if clarification required)
-        or `generation`/metadata when complete.
-    """
+def ask_question(question: str, request=None, thread_id: Optional[str] = None) -> dict:
+    """Invoke the graph with a question and return a QA-style result."""
+    graph = _get_graph(request)
 
     thread_id = thread_id or str(uuid4())
 
     ip = _client_ip(request) if request else None
-    # Pass the actual thread_id to create the token (was incorrectly using
-    # the uninitialized local variable `thread_token`).
     thread_token = create_thread_token(thread_id=thread_id, ip=ip)
 
     out = graph.invoke(
@@ -89,16 +80,9 @@ def ask_question(question: str, request=None, thread_id: str | None = None) -> d
 def resume_question(
     thread_id: str, thread_token: str, reply: str, request=None
 ) -> dict:
-    """Resume an interrupted thread by sending a reply command to the graph.
+    """Resume an interrupted thread by sending a reply command to the graph."""
+    graph = _get_graph(request)
 
-    Args:
-        thread_id: The thread identifier to resume.
-        reply: The user's reply text used to continue processing.
-
-    Returns:
-        A dict similar to `ask_question`, indicating `needs_clarification`
-        or `complete` and including generation/confidence metadata.
-    """
     ip = _client_ip(request) if request else None
     verify_thread_token(token=thread_token, thread_id=thread_id, ip=ip)
 

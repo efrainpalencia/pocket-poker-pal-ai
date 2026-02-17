@@ -1,62 +1,54 @@
 import os
+from contextlib import ExitStack
+from dataclasses import dataclass
 
 from dotenv import load_dotenv
 from langgraph.checkpoint.memory import MemorySaver
 
 load_dotenv()
 
-# Hold references to any entered context-managers so they are not
-# garbage-collected and closed unexpectedly for the lifetime of the
-# process (useful when 3rd-party factories return context-managers).
-_active_context_managers: list = []
+
+@dataclass
+class CheckpointerHandle:
+    saver: object
+    stack: ExitStack | None = None
 
 
-def build_checkpointer():
+def close_checkpointer(handle: CheckpointerHandle | None) -> None:
+    """Close resources associated with this checkpointer handle."""
+    if not handle:
+        return
+    if handle.stack is not None:
+        handle.stack.close()
+
+
+def build_checkpointer() -> CheckpointerHandle:
     database_url = os.getenv("DATABASE_URL")
-
     if not database_url:
-        # Local dev fallback
-        return MemorySaver()
+        return CheckpointerHandle(saver=MemorySaver(), stack=None)
 
     try:
         from langgraph.checkpoint.postgres import PostgresSaver
     except ModuleNotFoundError:
-        # Postgres saver implementation not available in installed packages.
-        # Fall back to in-memory saver so the app can start without this
-        # optional dependency (useful for local/dev environments).
-        return MemorySaver()
+        return CheckpointerHandle(saver=MemorySaver(), stack=None)
 
-    # Some implementations return a context-manager (e.g. a
-    # @contextlib.contextmanager) from `from_conn_string`. In that case
-    # the returned value won't have `setup()` directly. Detect and
-    # handle both cases: either call `setup()` on the saver directly,
-    # or enter the context manager and call `setup()` on the entered
-    # object.
-    saver = PostgresSaver.from_conn_string(database_url)
+    saver_or_cm = PostgresSaver.from_conn_string(database_url)
 
-    # Try to support both plain saver objects and context-manager factories.
-    try:
-        if hasattr(saver, "__enter__") and hasattr(saver, "__exit__"):
-            # Enter and keep the context manager alive for the process
-            # lifetime by storing it in `_active_context_managers`.
-            real_saver = saver.__enter__()
-            try:
-                real_saver.setup()
-            except Exception:
-                # Cleanup and fall back to MemorySaver.
-                try:
-                    saver.__exit__(None, None, None)
-                except Exception:
-                    pass
-                return MemorySaver()
+    # If PostgresSaver returns an ASYNC context manager, handle in lifespan
+    # with AsyncExitStack (requires build_checkpointer to become async).
+    if hasattr(saver_or_cm, "__aenter__") and hasattr(saver_or_cm, "__aexit__"):
+        raise RuntimeError(
+            "PostgresSaver.from_conn_string returned an async context manager. "
+            "Use an AsyncExitStack in lifespan and await __aenter__()."
+        )
 
-            _active_context_managers.append(saver)
-            return real_saver
-
-        # Plain saver object
+    # Context manager case: keep it alive for this app lifetime
+    if hasattr(saver_or_cm, "__enter__") and hasattr(saver_or_cm, "__exit__"):
+        stack = ExitStack()
+        saver = stack.enter_context(saver_or_cm)
         saver.setup()
-        return saver
-    except Exception:
-        # If anything goes wrong (e.g. cannot connect to DB), fall back
-        # to an in-memory saver so tests and local runs continue to work.
-        return MemorySaver()
+        return CheckpointerHandle(saver=saver, stack=stack)
+
+    # Plain saver object
+    saver_or_cm.setup()
+    return CheckpointerHandle(saver=saver_or_cm, stack=None)

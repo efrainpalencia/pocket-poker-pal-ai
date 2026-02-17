@@ -3,48 +3,19 @@ from graph.consts import SEMINOLE_NAMESPACE, TDA_NAMESPACE
 from graph.state import GraphState
 
 TOURNAMENT_HINTS = [
-    "tournament",
-    "level",
-    "levels",
-    "late reg",
-    "late registration",
-    "registration",
-    "bag",
-    "bagging",
-    "break",
-    "icm",
-    "payout",
-    "ante",
-    "button ante",
-    "bb ante",
-    "re-entry",
-    "rebuy",
-    "add-on",
-    "chip race",
+    "tournament", "level", "levels", "late reg", "late registration",
+    "registration", "bag", "bagging", "break", "icm", "payout", "ante",
+    "button ante", "bb ante", "re-entry", "rebuy", "add-on", "chip race",
 ]
 
 CASH_HINTS = [
-    "cash game",
-    "rake",
-    "time rake",
-    "must-move",
-    "table stakes",
-    "buy-in",
-    "straddle",
-    "missed blind",
-    "seat change",
-    "runner",
-    "comp",
-    "time charge",
+    "cash game", "rake", "time rake", "must-move", "table stakes",
+    "buy-in", "straddle", "missed blind", "seat change", "runner",
+    "comp", "time charge",
 ]
 
 
 def heuristic_classify(question: str) -> str:
-    """Quick heuristic classification of a question into a game type.
-
-    Looks for common tournament/cash hints in the lowercase question text.
-    """
-
     q = (question or "").lower()
     if any(h in q for h in TOURNAMENT_HINTS):
         return "tournament"
@@ -54,14 +25,8 @@ def heuristic_classify(question: str) -> str:
 
 
 def normalize_game_type(raw: str) -> str:
-    """Normalise raw classifier output into canonical game type.
-
-    Returns one of: `tournament`, `cash-game` or `unknown`.
-    """
-
     if not raw:
         return "unknown"
-
     s = raw.strip().lower()
 
     if s in {"tournament", "tourney"}:
@@ -79,35 +44,7 @@ def normalize_game_type(raw: str) -> str:
     return "unknown"
 
 
-def route_or_clarify(state: GraphState) -> dict:
-    """Graph node: decide routing to a ruleset or ask for clarification.
-
-    Uses heuristics and an LLM classifier as a fallback to choose the
-    `game_type` and `namespace` for retrieval. When unsure, returns a
-    `needs_clarification` payload prompting the UI to ask the user.
-    """
-
-    # ✅ Short-circuit if UI (or prior step) already set explicit routing fields
-    existing_game_type = state.get("game_type")
-    existing_namespace = state.get("namespace")
-
-    if existing_game_type in {"tournament", "cash-game"} and existing_namespace:
-        # Ensure needs_clarification is off; keep meta_filter if present
-        return {
-            "needs_clarification": False,
-            "game_type": existing_game_type,
-            "namespace": existing_namespace,
-            "meta_filter": state.get("meta_filter") or {},
-        }
-
-    q = state.get("question", "")
-
-    game_type = heuristic_classify(q)
-
-    if game_type == "unknown":
-        raw = classifier_chain.invoke({"question": q})
-        game_type = normalize_game_type(raw)
-
+def _routing_for(game_type: str) -> dict:
     if game_type == "tournament":
         return {
             "needs_clarification": False,
@@ -115,7 +52,6 @@ def route_or_clarify(state: GraphState) -> dict:
             "namespace": TDA_NAMESPACE,
             "meta_filter": {},
         }
-
     if game_type == "cash-game":
         return {
             "needs_clarification": False,
@@ -123,8 +59,88 @@ def route_or_clarify(state: GraphState) -> dict:
             "namespace": SEMINOLE_NAMESPACE,
             "meta_filter": {"game_type": "cash-game"},
         }
+    return {"needs_clarification": True}
 
+
+def _opposite(game_type: str) -> str:
+    return "cash-game" if game_type == "tournament" else "tournament"
+
+
+def _ask_to_reconfirm(previous: str) -> dict:
+    other = _opposite(previous)
     return {
         "needs_clarification": True,
+        # ✅ clear stale routing so no downstream node accidentally uses it
+        "namespace": None,
+        "meta_filter": {},
+        "missing_info": [f"Are you asking about {previous} rules or {other} rules?"],
+        "prompt": {
+            "type": "choose_ruleset",
+            "message": f"You previously selected {previous}. Is this question about {previous} or {other}?",
+            "options": [previous, other],
+        },
+        "last_game_type": previous,
+    }
+
+
+def _has_hint_for(game_type: str, question: str) -> bool:
+    q = (question or "").lower()
+    if game_type == "tournament":
+        return any(h in q for h in TOURNAMENT_HINTS)
+    if game_type == "cash-game":
+        return any(h in q for h in CASH_HINTS)
+    return False
+
+
+def route_or_clarify(state: GraphState) -> dict:
+    """
+    - Sticky ruleset within a thread (Option 1 session behavior)
+    - Reconfirm ruleset on strong evidence of a switch (Option 3)
+    """
+    q = state.get("question", "") or ""
+
+    existing_game_type = state.get("game_type")
+    existing_namespace = state.get("namespace")
+
+    # 1) Heuristic classification (strong signal)
+    inferred_heur = heuristic_classify(q)
+
+    # 2) LLM classifier only if heuristic doesn't know
+    inferred = inferred_heur
+    inferred_source = "heuristic"
+    if inferred == "unknown":
+        raw = classifier_chain.invoke({"question": q})
+        inferred = normalize_game_type(raw)
+        inferred_source = "llm"
+
+    # 3) If we already have routing, decide whether to keep it
+    if existing_game_type in {"tournament", "cash-game"} and existing_namespace:
+        # ✅ Reconfirm only on strong signal:
+        # - heuristic says opposite (strong), OR
+        # - llm says opposite AND question contains explicit opposite hints
+        if inferred in {"tournament", "cash-game"} and inferred != existing_game_type:
+            if inferred_source == "heuristic" or _has_hint_for(inferred, q):
+                return _ask_to_reconfirm(existing_game_type)
+
+        routed = _routing_for(existing_game_type)
+        routed["last_game_type"] = existing_game_type
+        return routed
+
+    # 4) No existing routing -> use inferred if confident, else ask
+    if inferred in {"tournament", "cash-game"}:
+        routed = _routing_for(inferred)
+        routed["last_game_type"] = inferred
+        return routed
+
+    # 5) Unknown -> ask
+    return {
+        "needs_clarification": True,
+        "namespace": None,
+        "meta_filter": {},
         "missing_info": ["Is this about tournament rules or cash-game rules?"],
+        "prompt": {
+            "type": "choose_ruleset",
+            "message": "I need to know which ruleset to use for your question.",
+            "options": ["tournament", "cash-game"],
+        },
     }
