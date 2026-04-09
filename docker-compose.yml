@@ -4,7 +4,7 @@ services:
     env_file:
       - .env
     ports:
-      - "8000:8000"
+      - "8000:8080"
     restart: unless-stopped
     # Optional: mount code for local dev iteration. Remove for immutable deployments.
     # volumes:

@@ -33,31 +33,46 @@ Top-level layout (important files and folders):
 ```
 pyproject.toml
 README.md
+
 src/
-	__init__.py
-	main.py
-	cli.py
-	ingestion.py
-	api/
-		v1/
-			routes/
-				chat.py
-				chat_stream.py
-	graph/
-		graph.py
-		retrieval_debug.py
-		vectorstore.py
-	chains/
-		classifier.py
-		generation.py
-		grader.py
-	services/
-		chat_service.py
-		chat_stream_service.py
-	schemas/
-		chat_schema.py
-	llm/
-		factory.py
+
+ main.py
+ cli.py
+ ingestion.py
+
+ api/
+  core/
+  v1/
+   routes/
+    chat.py
+    chat_stream.py
+
+ graph/
+  graph.py
+  state.py
+  checkpointer.py
+  nodes/
+   route_or_clarify.py
+   retrieve.py
+   generate.py
+   grade.py
+   retry_or_clarify.py
+   try_other_namespace.py
+
+ chains/
+  classifier.py
+  generation.py
+  grader.py
+
+ services/
+  chat_service.py
+  chat_stream_service.py
+
+ schemas/
+  chat_schema.py
+
+ llm/
+  factory.py
 
 ```
 

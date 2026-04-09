@@ -1,11 +1,13 @@
 import logging
 from contextlib import asynccontextmanager
+import os
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+import uvicorn
 
 from api.core.rate_limit import build_limiter
 from api.v1.routes import chat, chat_stream
@@ -51,11 +53,15 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://127.0.0.1:4173",
+    "http://pocket-poker-pal-web.vercel.app",
+    "https://pocket-poker-pal-web.vercel.app",
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"^https://pocket-poker-pal-.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -76,7 +82,8 @@ app.include_router(
 )
 
 
-# if __name__ == "__main__":
-# uvicorn.run("main:app", port=8000, reload=True)
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", "8080"))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
 # cli_run()
 # write_graph_png()
